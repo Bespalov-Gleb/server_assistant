@@ -1,0 +1,40 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environment
+venv/
+.env
+
+# IDE specific files
+.vscode/
+.idea/
+
+# Logs
+*.log
+
+# Machine Learning model files (optional)
+*.pth
+*.pt
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Environment files
+*.env
+.env
+
+# Sensitive data
+secrets.json
+
+# Temporary files
+*.tmp
+*.bak
+
+# Dependency directories
+node_modules/
