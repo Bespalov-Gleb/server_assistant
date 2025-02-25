@@ -1,6 +1,6 @@
 {
     "850635215": {
-        "mode": "voice",
+        "mode": "text",
         "model": "openai"
     }
 }

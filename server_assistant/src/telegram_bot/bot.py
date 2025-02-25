@@ -4,6 +4,10 @@ from dotenv import load_dotenv
 import telebot
 from telebot.types import Message, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
 import sys
+import json
+from datetime import datetime, timedelta
+import threading
+from src.utils.message_type_detector import MessageTypeDetector
 
 # Добавляем путь к корневой директории проекта
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
@@ -15,6 +19,7 @@ from src.neural_networks.openai_processor import OpenAIProcessor
 from src.audio_processing.speech_recognition import AudioTranscriber
 from src.audio_processing.voice_synthesis import VoiceSynthesizer
 from src.utils.user_preferences import UserPreferences
+from src.neural_networks.dialog_manager import DialogManager
 
 # Загрузка переменных окружения
 load_dotenv()
@@ -30,26 +35,109 @@ class TelegramAssistantBot:
     def __init__(self):
         # Инициализация токена и бота
         self.token = os.getenv('TELEGRAM_BOT_TOKEN')
+        self.message_type_detector = MessageTypeDetector()
         if not self.token:
             raise ValueError("Telegram Bot Token не найден в переменных окружения")
         
         self.bot = telebot.TeleBot(self.token)
+        self.logger = logger
         
         # Инициализация компонентов
-        self.guide_network = GuideNetwork()
+        self.guide_network = GuideNetwork(bot=self.bot)
         self.audio_transcriber = AudioTranscriber()
         self.voice_synthesizer = VoiceSynthesizer()
         self.user_preferences = UserPreferences()
+
+        self.reminder_file = 'temp/reminders.json'
+        self.reminders = self.load_reminders()
+        #self.start_reminder_thread()
         
         # Словарь процессоров
         self.llm_processors = {
             'deepseek': DeepSeekProcessor(),
             'openai': OpenAIProcessor()
         }
+        # Добавляем инициализацию dialog_manager
+        self.dialog_manager = DialogManager(
+            max_context_length=50,  # Соответствует текущей настройке
+            context_file=f'temp/dialogue_context.json'
+        )
         
         # Регистрация обработчиков
         self._register_handlers()
 
+    def load_reminders(self):
+        if os.path.exists(self.reminder_file):
+            with open(self.reminder_file, 'r', encoding='utf-8') as f:
+                content = f.read()
+                if content:  # Проверяем, что файл не пустой
+                    return json.loads(content)
+                else:
+                    return []  # Возвращаем пустой список, если файл пустой
+        else:
+            # Создаем файл с пустым массивом, если он не существует
+            with open(self.reminder_file, 'w', encoding='utf-8') as f:
+                json.dump([], f)
+            return []
+
+    def save_reminders(self):
+        with open(self.reminder_file, 'w', encoding='utf-8') as f:
+            json.dump(self.reminders, f)
+
+    def add_reminder(self, reminder_text, reminder_time, reminder_type='one-time', user_id=None):
+        reminder = {
+            'id': len(self.reminders) + 1,
+            'text': reminder_text,
+            'time': reminder_time.isoformat(),
+            'type': reminder_type,
+            'user_id': user_id  # Сохраняем ID пользователя
+        }
+        self.reminders.append(reminder)
+        self.save_reminders()
+
+        # Запуск потока для уведомления
+        threading.Thread(target=self.wait_and_notify, args=(reminder,)).start()
+
+    def wait_and_notify(self, reminder):
+        reminder_time = datetime.fromisoformat(reminder['time'])
+        time_to_wait = (reminder_time - datetime.now()).total_seconds()
+        if time_to_wait > 0:
+            time.sleep(time_to_wait)
+            message_text = f"Напоминание: {reminder['text']}"
+
+            # Отправка сообщения пользователю
+            user_id = reminder['user_id']  # Получаем ID пользователя
+            self.bot.send_message(user_id, message_text)  # Используйте правильный метод для отправки сообщения
+            if reminder['type'] == 'one-time':
+                self.reminders.remove(reminder)  # Удаляем напоминание
+                self.save_reminders()
+            elif reminder['type'] == 'constant':
+                # Устанавливаем новое напоминание на сутки вперед
+                new_reminder_time = reminder_time + timedelta(days=1)
+                self.add_reminder(reminder['text'], new_reminder_time, 'constant')
+                self.reminders.remove(reminder)  # Удаляем старое напоминание
+                self.save_reminders()
+    def delete_reminder(self, reminder_id):
+        self.reminders = [rem for rem in self.reminders if rem['id'] != reminder_id]
+        self.save_reminders()
+
+    def list_reminders(self):
+        return self.reminders
+
+    def start_reminder_thread(self):
+        threading.Thread(target=self.check_reminders).start()
+
+    def check_reminders(self):
+        while True:
+            now = datetime.now()
+            if self.reminders:
+                for reminder in self.reminders:
+                    reminder_time = datetime.fromisoformat(reminder['time'])
+                    if reminder_time <= now:
+                        print(f"Напоминание: {reminder['text']}")  # Здесь можно добавить отправку сообщения в Telegram
+                        self.reminders.remove(reminder)
+                        self.save_reminders()
+                time.sleep(60)  # Проверяем каждую минуту
     def _process_message(self, text: str, user_id: int) -> str:
         """
         Обработка сообщения с учетом выбранной модели и автоматическим переключением
@@ -65,8 +153,8 @@ class TelegramAssistantBot:
         processor = self.llm_processors.get(model, self.llm_processors['deepseek'])
         
         # Обработка сообщения через выбранную модель
-        response = processor.process_with_retry(text)
-        
+        # response = processor.process_with_retry(text)
+        response = self.guide_network.process_message(text)
         # Если ответ None или содержит сообщение о переключении, пробуем OpenAI
         if (response is None or 
             (isinstance(response, str) and "❌ Извините, закончились средства" in response)):
@@ -102,14 +190,7 @@ class TelegramAssistantBot:
                 "Отправь голосовое или текстовое сообщение для общения!"
             )
             
-            # Создаем клавиатуру с режимами
-            markup = ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
-            markup.add(
-                KeyboardButton('🔊 Голосовой режим'),
-                KeyboardButton('📝 Текстовый режим')
-            )
-            
-            self.bot.reply_to(message, welcome_text, reply_markup=markup)
+            self.bot.reply_to(message, welcome_text)
 
         @self.bot.message_handler(commands=['select_model'])
         def select_model(message: Message):
@@ -200,192 +281,83 @@ class TelegramAssistantBot:
                 else:
                     self.bot.reply_to(message, "❌ OpenAI: Проблемы с ключом")
 
-        @self.bot.message_handler(func=lambda message: message.text == '🔊 Голосовой режим')
-        def voice_mode(message: Message):
-            """Включение голосового режима"""
-            self.user_preferences.set_user_mode(message.from_user.id, 'voice')
-            self.bot.reply_to(
-                message, 
-                "✅ Включен голосовой режим. Теперь я буду отвечать голосовыми сообщениями."
-            )
-
-        @self.bot.message_handler(func=lambda message: message.text == '📝 Текстовый режим')
-        def text_mode(message: Message):
-            """Включение текстового режима"""
-            self.user_preferences.set_user_mode(message.from_user.id, 'text')
-            self.bot.reply_to(
-                message, 
-                "✅ Включен текстовый режим. Я буду отвечать текстовыми сообщениями."
-            )
+        @self.bot.message_handler(content_types=['text', 'voice'])
+        def handle_message(message: Message):
+            """Универсальный обработчик сообщений"""
+            if message.content_type == 'text':
+                # Существующая логика для текстовых сообщений
+                handle_text_message(message)
+            elif message.content_type == 'voice':
+                # Существующая логика для голосовых сообщений
+                handle_voice_message(message)
 
         @self.bot.message_handler(content_types=['text'])
         def handle_text_message(message: Message):
             """Обработчик текстовых сообщений"""
+            response = "Произошла ошибка при обработке вашего запроса."
             try:
-                # Логирование входящего сообщения
-                logger.info(f"Получено текстовое сообщение от {message.from_user.username}: {message.text}")
-                
-                # Обработка сообщения
+                # Генерация текстового ответа
                 response = self._process_message(message.text, message.from_user.id)
                 
-                # Проверяем, что ответ не пустой
-                if not response:
-                    response = "Извините, не удалось сгенерировать ответ. Попробуйте позже."
-                
-                # Проверяем режим пользователя
-                user_mode = self.user_preferences.get_user_mode(message.from_user.id)
-                
-                if user_mode == 'voice':
-                    # Генерируем голосовой ответ
-                    voice_response = self.voice_synthesizer.text_to_speech(
-                        response, 
-                        output_file=f'temp_response_{message.message_id}.ogg'
-                    )
-                    
-                    # Отправляем голосовой ответ
-                    if voice_response:
-                        with open(voice_response, 'rb') as voice:
-                            self.bot.send_voice(message.chat.id, voice)
-                        os.remove(voice_response)
-                else:
-                    # Отправляем текстовый ответ
+                if response:
                     self.bot.reply_to(message, response)
-                
-                # Логирование исходящего сообщения
-                logger.info(f"Отправлен ответ: {response}")
+                else:
+                    response = "Извините, не удалось сгенерировать ответ. Попробуйте позже."
+                    self.bot.reply_to(message, response)
             
             except Exception as e:
-                # Обработка непредвиденных ошибок
-                error_message = "Извините, произошла ошибка при обработке сообщения."
-                self.bot.reply_to(message, error_message)
-                logger.error(f"Ошибка при обработке текстового сообщения: {e}", exc_info=True)
+                logger.error(f"Ошибка обработки текстового сообщения: {e}")
+                self.bot.reply_to(message, "Произошла ошибка при обработке сообщения.")
+            
+                
 
         @self.bot.message_handler(content_types=['voice'])
         def handle_voice_message(message: Message):
+            """Обработчик голосовых сообщений"""
             try:
-                # Создаем директорию для временных файлов с использованием абсолютного пути
-                base_dir = os.path.dirname(os.path.abspath(__file__))
-                project_root = os.path.abspath(os.path.join(base_dir, '..', '..'))
-                temp_dir = os.path.join(project_root, 'temp')
+                # Получаем информацию о файле
+                file_info = self.bot.get_file(message.voice.file_id)
+                downloaded_file = self.bot.download_file(file_info.file_path)
                 
-                # Создаем директорию с полными правами
-                os.makedirs(temp_dir, mode=0o777, exist_ok=True)
+                # Сохраняем временный файл
+                with open('temp_voice_message.oga', 'wb') as new_file:
+                    new_file.write(downloaded_file)
                 
-                # Скачиваем голосовое сообщение
-                voice_file = self.bot.get_file(message.voice.file_id)
-                downloaded_file = self.bot.download_file(voice_file.file_path)
+                # Транскрибация аудио
+                transcribed_text = self.audio_transcriber.transcribe_audio('temp_voice_message.oga')
                 
-                # Сохраняем файл с полным путем во временной директории
-                voice_path = os.path.join(temp_dir, f'temp_voice_{message.message_id}.oga')
-                
-                # Диагностика путей
-                logger.info(f"Base directory: {base_dir}")
-                logger.info(f"Project root: {project_root}")
-                logger.info(f"Temp directory: {temp_dir}")
-                logger.info(f"Voice file path: {voice_path}")
-                
-                try:
-                    with open(voice_path, 'wb') as new_file:
-                        new_file.write(downloaded_file)
+                if transcribed_text:
+                    self.dialog_manager.add_message(transcribed_text, role='user_voice')
+                    # Генерация ответа на основе транскрибированного текста
+                    response = self._process_message(transcribed_text, message.from_user.id)
                     
-                    # Проверка существования и размера файла
-                    if not os.path.exists(voice_path):
-                        raise FileNotFoundError(f"Файл не создан: {voice_path}")
-                    
-                    file_size = os.path.getsize(voice_path)
-                    logger.info(f"Размер файла: {file_size} байт")
-                    
-                    if file_size == 0:
-                        raise ValueError("Файл пустой")
+                    if response:
+                        # Синтез голосового ответа
+                        voice_response_path = self.voice_synthesizer.text_to_speech(response)
+                        
+                        # Отправка голосового ответа
+                        with open(voice_response_path, 'rb') as voice_file:
+                            self.bot.send_voice(message.chat.id, voice_file)
+                        
+                        # Удаление временных файлов
+                        os.remove(voice_response_path)
                 
-                except Exception as e:
-                    logger.error(f"Ошибка сохранения файла: {e}")
-                    raise
-                
-                # Распознаем текст
-                text = self.audio_transcriber.transcribe_audio(voice_path)
-                
-                # Диагностика распознавания
-                logger.info(f"Распознанный текст: {text}")
-                
-                # Обрабатываем сообщение
-                response = self._process_message(text, message.from_user.id)
-                
-                # Проверяем, что ответ не пустой
-                if not response:
-                    response = "Извините, не удалось сгенерировать ответ. Попробуйте позже."
-                
-                # Генерируем голосовой ответ
-                voice_response = self.voice_synthesizer.text_to_speech(
-                    response, 
-                    output_file=os.path.join(temp_dir, f'temp_response_{message.message_id}.oga')
-                )
-                
-                # Отправляем голосовой ответ
-                if voice_response:
-                    with open(voice_response, 'rb') as voice:
-                        self.bot.send_voice(message.chat.id, voice)
-                    os.remove(voice_response)
-                
-                # Очищаем временные файлы
-                os.remove(voice_path)
-                
-                # Очистка временной директории от аудиофайлов
-                self._cleanup_temp_audio_files(temp_dir)
+                # Удаление временного файла
+                os.remove('temp_voice_message.oga')
             
             except Exception as e:
-                logger.error(f"Ошибка обработки голосового сообщения: {e}", exc_info=True)
-                self.bot.reply_to(message, "Извините, не удалось обработать голосовое сообщение")
-
-    def _cleanup_temp_audio_files(self, temp_dir: str):
-        """
-        Очистка временной директории от аудиофайлов
-        
-        :param temp_dir: Путь к временной директории
-        """
-        try:
-            # Список расширений для удаления
-            audio_extensions = ['.wav', '.oga', '.ogg', '.mp3']
-            
-            # Счетчики для логирования
-            deleted_files = 0
-            total_files = 0
-            
-            # Перебираем все файлы во временной директории
-            for filename in os.listdir(temp_dir):
-                file_path = os.path.join(temp_dir, filename)
-                
-                # Проверяем, что это файл и имеет аудио расширение
-                if os.path.isfile(file_path) and any(filename.lower().endswith(ext) for ext in audio_extensions):
-                    total_files += 1
-                    try:
-                        os.remove(file_path)
-                        deleted_files += 1
-                    except Exception as e:
-                        logger.warning(f"Не удалось удалить файл {filename}: {e}")
-            
-            # Логируем результат
-            if total_files > 0:
-                logger.info(f"Очищено {deleted_files} из {total_files} аудиофайлов во временной директории")
-        
-        except Exception as e:
-            logger.error(f"Ошибка при очистке временной директории: {e}", exc_info=True)
+                logger.error(f"Ошибка обработки голосового сообщения: {e}")
+                self.bot.reply_to(message, "Произошла ошибка при обработке голосового сообщения.")
 
     def start(self):
         """Запуск бота"""
-        try:
-            logger.info("Запуск Telegram-бота")
-            self.bot.polling(none_stop=True)
-        except Exception as e:
-            logger.error(f"Ошибка при запуске бота: {e}", exc_info=True)
+        logger.info("Telegram бот запущен")
+        self.bot.polling(none_stop=True)
 
 def main():
     """Точка входа для запуска бота"""
-    try:
-        bot = TelegramAssistantBot()
-        bot.start()
-    except Exception as e:
-        logger.critical(f"Критическая ошибка при запуске бота: {e}", exc_info=True)
+    bot = TelegramAssistantBot()
+    bot.start()
 
 if __name__ == '__main__':
     main()

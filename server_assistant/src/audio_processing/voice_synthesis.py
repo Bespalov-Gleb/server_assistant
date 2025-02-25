@@ -112,13 +112,21 @@ class VoiceSynthesizer:
         """
         try:
             # Проверка текста
+            # Отладочная информация
+            self.logger.info(f"Входной текст: {text}")
+            self.logger.info(f"Путь файла: {output_file}")
             if not text or len(text.strip()) == 0:
                 self.logger.warning("Пустой текст для синтеза речи")
                 return ""
             
             # Генерация пути для файлов
-            base_dir = os.path.dirname(output_file)
-            os.makedirs(base_dir, exist_ok=True)
+            if not output_file:
+                base_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'temp')
+                output_file = os.path.join(base_dir, f'tts_response_{int(time.time())}.wav')
+            else:
+                # Если указан относительный путь, делаем его абсолютным
+                output_file = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'temp', output_file))
+            os.makedirs(os.path.dirname(output_file), exist_ok=True)
             
             # Путь для .wav файла
             wav_output_path = os.path.splitext(output_file)[0] + '.wav'
@@ -141,19 +149,24 @@ class VoiceSynthesizer:
             # Сохранение .wav
             sf.write(full_output_path, audio_data, 24000)
             
-            # Конвертация в .oga через FFmpeg
-            ffmpeg_cmd = [
-                'ffmpeg', 
-                '-i', full_output_path,  # Входной .wav
-                '-c:a', 'libvorbis',     # Кодек Vorbis для .oga
-                '-y',                    # Перезаписать без подтверждения
-                oga_output_path          # Выходной .oga
-            ]
-            
+            # Конвертация в .oga через soundfile
             try:
-                subprocess.run(ffmpeg_cmd, check=True, capture_output=True)
-            except subprocess.CalledProcessError as e:
-                self.logger.error(f"Ошибка конвертации в .oga: {e.stderr.decode()}")
+                # Чтение исходного .wav файла
+                audio_data, sample_rate = sf.read(full_output_path)
+                
+                # Сохранение в .oga с указанием формата
+                sf.write(
+                    oga_output_path, 
+                    audio_data, 
+                    sample_rate, 
+                    format='ogg'  # Используем 'ogg' вместо 'oga'
+                )
+                
+                # Логирование успешной конвертации
+                self.logger.info(f"Аудио сконвертировано в .oga: {oga_output_path}")
+            
+            except Exception as e:
+                self.logger.error(f"Ошибка конвертации в .oga через soundfile: {e}")
                 return full_output_path
             
             # Удаление промежуточного .wav файла

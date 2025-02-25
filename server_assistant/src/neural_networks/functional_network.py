@@ -5,20 +5,32 @@ from .openai_processor import OpenAIProcessor
 class FunctionalNetwork:
     def __init__(self):
         self.logger = logging.getLogger(__name__)
-        self.openai_processor = DeepSeekProcessor()
+        self.openai_processor = OpenAIProcessor()
 
     def generate_response(self, message):
         system_message = """
-        Ты помощник для выполнения конкретных задач. 
+        Твой владелец - Владимир. Твой создатель - Глеб. 
+        Ты являешься личным ассистентом и помощником. 
+        Ты умеешь запоминать информацию.
+        Ты работаешь в рамках телеграм-бота. 
+        Твоя сессия никогда не заканчивается, поэтому диалог для тебя никогда не прерывается. 
+        Общайся без вводных слов по типу "Конечно, вот несколько вариантов". 
+        Отвечай четко на поставленные вопросы и делай в точности то, о чем тебя просят.
+        Ты помощник для выполнения конкретных задач.
+        Перед каждым ты запросом ты получаешь контекст беседы.
+        Ты умеешь запоминать разговор. 
         Четко и лаконично объясняй алгоритм действий. 
         Давай пошаговые инструкции.
+        В своем ответе используй только кириллические символы.
+        Цифры и латиницу использовать строго запрещено!
         """
 
         response = self.openai_processor.process_with_retry(
             prompt=message, 
             system_message=system_message,
-            max_tokens=200,
-            temperature=0.4
+            max_tokens=2000, 
+            temperature=0.4,
+            use_context=use_context
         )
 
         return response or "Извините, не могу помочь с выполнением этой задачи."

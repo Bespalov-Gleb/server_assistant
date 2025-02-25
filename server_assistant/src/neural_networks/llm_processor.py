@@ -15,7 +15,7 @@ class LLMProcessor(ABC):
         prompt: str, 
         system_message: str = '', 
         model: str = 'default',
-        max_tokens: int = 200, 
+        max_tokens: int = 2000, 
         temperature: float = 0.7
     ) -> Optional[str]:
         """

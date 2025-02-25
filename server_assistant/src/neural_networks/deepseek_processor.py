@@ -4,11 +4,12 @@ from dotenv import load_dotenv
 from openai import OpenAI
 from typing import Dict, Any, Optional
 from .llm_processor import LLMProcessor
+from .dialog_manager import DialogManager
 
 load_dotenv()
 
 class DeepSeekProcessor(LLMProcessor):
-    def __init__(self):
+    def __init__(self, user_id: int = None):
         self.logger = logging.getLogger(__name__)
         api_key = os.getenv('DEEPSEEK_API_KEY')
         
@@ -20,47 +21,69 @@ class DeepSeekProcessor(LLMProcessor):
             api_key=api_key,
             base_url="https://api.deepseek.com/v1"
         )
+        
+        self.dialog_manager = DialogManager(
+            max_context_length=5,
+            max_tokens=1000,
+            context_file=f'temp/dialog_context_{user_id}.json' if user_id else None
+        )
 
     def process_with_retry(
         self, 
         prompt: str, 
         system_message: str = '', 
         model: str = "deepseek/chat",
-        max_tokens: int = 200, 
-        temperature: float = 0.7
+        max_tokens: int = 2000, 
+        temperature: float = 0.7,
+        use_context: bool = True
     ) -> Optional[str]:
         """
-        Обработка запроса через DeepSeek
+        Обработка запроса через DeepSeek с поддержкой контекста
+        
+        :param prompt: Текст запроса
+        :param system_message: Системное сообщение
+        :param model: Модель для генерации
+        :param max_tokens: Максимальная длина ответа
+        :param temperature: Креативность ответа
+        :param use_context: Использовать ли диалоговый контекст
+        :return: Сгенерированный текст
         """
         try:
+            # Подготовка контекста
+            messages = []
+            
+            if use_context:
+                # Добавляем сообщение пользователя в историю
+                self.dialog_manager.add_message("user", prompt)
+                
+                # Получаем контекст
+                messages = self.dialog_manager.get_context()
+            else:
+                # Если контекст не нужен, создаем базовое сообщение
+                messages = [
+                    {"role": "system", "content": system_message or "Ты - helpful ассистент"},
+                    {"role": "user", "content": prompt}
+                ]
+            
+            # Генерация ответа
             response = self.client.chat.completions.create(
                 model=model,
-                messages=[
-                    {"role": "system", "content": system_message},
-                    {"role": "user", "content": prompt}
-                ],
+                messages=messages,
                 max_tokens=max_tokens,
                 temperature=temperature
             )
             
+            # Извлечение текста ответа
             generated_text = response.choices[0].message.content.strip()
             
-            # Проверка на пустой ответ
-            if not generated_text:
-                self.logger.warning("Сгенерирован пустой ответ")
-                return None
+            # Добавляем ответ в историю, если используется контекст
+            if use_context:
+                self.dialog_manager.add_message("assistant", generated_text)
             
             return generated_text
         
         except Exception as e:
-            error_message = str(e)
-            
-            # Специфические сообщения об ошибках
-            if "Insufficient Balance" in error_message:
-                self.logger.error("Недостаточно средств на счете DeepSeek")
-                return "❌ Извините, закончились средства на DeepSeek. Переключаюсь на резервную модель."
-            
-            self.logger.error(f"Ошибка при запросе к DeepSeek: {e}")
+            self.logger.error(f"Ошибка генерации: {e}")
             return None
 
     def get_model_info(self) -> Dict[str, Any]:
@@ -79,7 +102,6 @@ class DeepSeekProcessor(LLMProcessor):
         Проверяет валидность API-ключа DeepSeek
         """
         try:
-            # Пробуем сделать простой запрос для проверки ключа
             test_response = self.client.chat.completions.create(
                 model="deepseek/chat",
                 messages=[{"role": "user", "content": "Привет"}],

@@ -5,17 +5,20 @@ from .router_network import RouterNetwork, TaskType
 from .small_talk_network import SmallTalkNetwork
 from .complex_dialog_network import ComplexDialogNetwork
 from .information_network import InformationNetwork
+from .reminder_network import ReminderNetwork
+from .functional_network import FunctionalNetwork
 
 class GuideNetwork:
-    def __init__(self):
-        self.logger = logging.getLogger(__name__)
-        
+    def __init__(self, bot):
+        self.logger = logging.getLogger(__name__)        
         # Инициализация сетей
-        self.openai_processor = DeepSeekProcessor()
+        self.openai_processor = OpenAIProcessor()
+        self.functional_network = FunctionalNetwork()
         self.router_network = RouterNetwork()
         self.small_talk_network = SmallTalkNetwork()
         self.complex_dialog_network = ComplexDialogNetwork()
         self.information_network = InformationNetwork()
+        self.reminder_network = ReminderNetwork(bot=bot)
 
     def _route_to_network(self, task_type: TaskType, message: str) -> str:
         """
@@ -27,7 +30,12 @@ class GuideNetwork:
             elif task_type == TaskType.COMPLEX_DIALOG:
                 return self.complex_dialog_network.generate_response(message)
             elif task_type == TaskType.INFORMATION:
+                self.logger.info("Приступил к генерации информационного ответа")
                 return self.information_network.generate_response(message)
+            elif task_type == TaskType.FUNCTIONAL:
+                return self.functional_network.generate_response(message)
+            elif task_type == TaskType.REMINDER:
+                return self.reminder_network.create_reminder(message)
             else:
                 # Fallback для функциональных задач
                 return "Извините, я не могу обработать это сообщение."
@@ -42,6 +50,7 @@ class GuideNetwork:
         """
         # Определение типа задачи
         task_type = self.router_network.detect_task_type(message)
+        
         
         # Выбор и генерация ответа
         response = self._route_to_network(task_type, message)

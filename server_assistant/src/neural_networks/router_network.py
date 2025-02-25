@@ -11,15 +11,17 @@ class TaskType(Enum):
     COMPLEX_DIALOG = auto()
     FUNCTIONAL = auto()
     INFORMATION = auto()
+    REMINDER = auto()
 
 class RouterNetwork:
     def __init__(self):
         self.logger = logging.getLogger(__name__)
-        self.openai_processor = DeepSeekProcessor()
+        self.openai_processor = OpenAIProcessor()
 
     def detect_task_type(self, message: str) -> TaskType:
         system_message = """
-        Ты - профессиональный классификатор сообщений. 
+        Ты - профессиональный классификатор сообщений.
+        В ответе укажи только тип сообщения. 
         Определи тип сообщения ТОЧНО:
 
         1. SMALL_TALK: 
@@ -46,15 +48,20 @@ class RouterNetwork:
            - Справочные вопросы
            - Получение конкретных знаний
            - Например: "Что такое квантовая физика?", "Сколько планет в солнечной системе?"
+
+        5. REMINDER:
+            - Запрос на создание напоминания
+            - Просьба напомнить что-либо
+            - Просба написать через какое-то время
+            - Например: "Напомни сегодня в 16 часов встретить жену с салона"
         """
 
         classification = self.openai_processor.process_with_retry(
-            prompt=message, 
-            system_message=system_message,
-            max_tokens=50,
-            temperature=0.2
+            prompt=system_message + '\n' + message, 
+            temperature=0.5,
+            max_tokens=2000
         )
-
+        self.logger.info(f"Классификация типа задачи: {classification}")
         # Логика распознавания типа задачи
         if classification:
             classification = classification.upper()
@@ -66,6 +73,8 @@ class RouterNetwork:
                 return TaskType.FUNCTIONAL
             elif 'INFORMATION' in classification:
                 return TaskType.INFORMATION
+            elif 'REMINDER' in classification:
+                return TaskType.REMINDER
 
         # Fallback - по умолчанию SMALL_TALK
         self.logger.warning(f"Не удалось определить тип задачи для: {message}")
