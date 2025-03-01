@@ -16,6 +16,11 @@ venv/
 # Logs
 *.log
 
+*.env
+*secret*
+*key*
+*token*
+
 # Временные файлы
 temp/
 *.tmp
