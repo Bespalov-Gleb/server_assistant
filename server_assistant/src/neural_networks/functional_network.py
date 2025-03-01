@@ -1,11 +1,16 @@
 import logging
 from .deepseek_processor import DeepSeekProcessor  # Изменили импорт
 from .openai_processor import OpenAIProcessor
+from ..utils.user_preferences import UserPreferences
 
 class FunctionalNetwork:
-    def __init__(self):
+    def __init__(self, user_id: int):
         self.logger = logging.getLogger(__name__)
-        self.openai_processor = OpenAIProcessor()
+        self.user_preferences = UserPreferences()
+        selected_model = self.user_preferences.get_llm_model(user_id=user_id)
+
+            
+        self.openai_processor = OpenAIProcessor(task_type="FUNCTIONAL")
 
     def generate_response(self, message):
         system_message = """
@@ -26,11 +31,10 @@ class FunctionalNetwork:
         """
 
         response = self.openai_processor.process_with_retry(
-            prompt=message, 
-            system_message=system_message,
+            prompt=system_message + '\n' + message, 
             max_tokens=2000, 
             temperature=0.4,
-            use_context=use_context
+            use_context=True
         )
 
         return response or "Извините, не могу помочь с выполнением этой задачи."

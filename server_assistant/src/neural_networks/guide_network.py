@@ -1,6 +1,6 @@
 import logging
-from .deepseek_processor import DeepSeekProcessor  # Изменили импорт
-from .openai_processor import OpenAIProcessor
+import asyncio
+from enum import Enum
 from .router_network import RouterNetwork, TaskType
 from .small_talk_network import SmallTalkNetwork
 from .complex_dialog_network import ComplexDialogNetwork
@@ -9,18 +9,17 @@ from .reminder_network import ReminderNetwork
 from .functional_network import FunctionalNetwork
 
 class GuideNetwork:
-    def __init__(self, bot):
+    def __init__(self, bot, user_id):
         self.logger = logging.getLogger(__name__)        
         # Инициализация сетей
-        self.openai_processor = OpenAIProcessor()
-        self.functional_network = FunctionalNetwork()
-        self.router_network = RouterNetwork()
-        self.small_talk_network = SmallTalkNetwork()
-        self.complex_dialog_network = ComplexDialogNetwork()
-        self.information_network = InformationNetwork()
-        self.reminder_network = ReminderNetwork(bot=bot)
+        self.functional_network = FunctionalNetwork(user_id=user_id)
+        self.router_network = RouterNetwork(user_id=user_id)
+        self.small_talk_network = SmallTalkNetwork(user_id=user_id)
+        self.complex_dialog_network = ComplexDialogNetwork(user_id=user_id)
+        self.information_network = InformationNetwork(user_id=user_id)
+        self.reminder_network = ReminderNetwork(bot=bot, user_id=user_id)
 
-    def _route_to_network(self, task_type: TaskType, message: str) -> str:
+    async def _route_to_network(self, task_type: TaskType, message: str) -> str:
         """
         Маршрутизация сообщения в соответствующую нейронную сеть
         """
@@ -35,7 +34,7 @@ class GuideNetwork:
             elif task_type == TaskType.FUNCTIONAL:
                 return self.functional_network.generate_response(message)
             elif task_type == TaskType.REMINDER:
-                return self.reminder_network.create_reminder(message)
+                return await self.reminder_network.create_reminder(message)
             else:
                 # Fallback для функциональных задач
                 return "Извините, я не могу обработать это сообщение."
@@ -44,7 +43,7 @@ class GuideNetwork:
             self.logger.error(f"Ошибка при маршрутизации: {e}")
             return "Произошла ошибка при обработке сообщения."
 
-    def process_message(self, message: str) -> str:
+    async def process_message(self, message: str) -> str:
         """
         Основной метод обработки входящего сообщения
         """
@@ -53,5 +52,5 @@ class GuideNetwork:
         
         
         # Выбор и генерация ответа
-        response = self._route_to_network(task_type, message)
+        response = await self._route_to_network(task_type, message)
         return response

@@ -1,11 +1,15 @@
 import logging
 from .deepseek_processor import DeepSeekProcessor  # Изменили импорт
 from .openai_processor import OpenAIProcessor
+from ..utils.user_preferences import UserPreferences
 
 class ComplexDialogNetwork:
-    def __init__(self):
+    def __init__(self, user_id):
         self.logger = logging.getLogger(__name__)
-        self.openai_processor = OpenAIProcessor()
+        self.user_preferences = UserPreferences()
+        selected_model = self.user_preferences.get_llm_model(user_id=user_id)
+        
+        self.openai_processor = OpenAIProcessor(task_type="COMPLEX_DIALOG")
 
     def generate_response(self, message, use_context: bool = True):
         system_message = """
@@ -27,11 +31,11 @@ class ComplexDialogNetwork:
         """
 
         response = self.openai_processor.process_with_retry(
-            prompt=message, 
+            prompt=system_message + '\n' + message, 
             system_message=system_message,
             max_tokens=2000, 
             temperature=0.6,
-            use_context=use_context
+            use_context=True
         )
 
         return response or "Извините, не могу сформулировать развернутый ответ."

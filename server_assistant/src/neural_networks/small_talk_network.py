@@ -1,11 +1,14 @@
 import logging
 from .deepseek_processor import DeepSeekProcessor  # Изменили импорт
 from .openai_processor import OpenAIProcessor
+from ..utils.user_preferences import UserPreferences
 
 class SmallTalkNetwork:
-    def __init__(self):
+    def __init__(self, user_id):
         self.logger = logging.getLogger(__name__)
-        self.openai_processor = OpenAIProcessor()
+        self.user_preferences = UserPreferences()
+        self.openai_processor = OpenAIProcessor(task_type="SMALL_TALK")
+    
 
     def generate_response(self, message, use_context: bool = True):
         system_message = """

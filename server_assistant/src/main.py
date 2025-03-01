@@ -4,6 +4,8 @@ from logging_config import setup_logging
 import sys
 import threading
 import time
+import asyncio
+
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from src.telegram_bot.bot import TelegramAssistantBot
@@ -23,8 +25,10 @@ def main():
         raise ValueError("Telegram Bot Token не найден. Установите переменную окружения TELEGRAM_BOT_TOKEN")
     
     # Создаем и запускаем бота
-    telegram_bot = TelegramAssistantBot()
-    telegram_bot.start()  # Изменили с start() на run()
+    async def run_bot():
+        bot = TelegramAssistantBot()
+        await bot.start()
+    asyncio.run(run_bot())
 
 if __name__ == "__main__":
     threading.stack_size(200000000)

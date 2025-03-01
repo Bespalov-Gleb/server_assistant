@@ -1,11 +1,15 @@
 import logging
 from .deepseek_processor import DeepSeekProcessor  # Изменили импорт
 from .openai_processor import OpenAIProcessor
+from ..utils.user_preferences import UserPreferences
 
 class InformationNetwork:
-    def __init__(self):
+    def __init__(self, user_id: int):
         self.logger = logging.getLogger(__name__)
-        self.openai_processor = OpenAIProcessor()
+        self.user_preferences = UserPreferences()
+        selected_model = self.user_preferences.get_llm_model(user_id=user_id)
+        
+        self.openai_processor = OpenAIProcessor(task_type="INFORMATION")
 
     def generate_response(self, message, use_context: bool = True):
         system_message = """
@@ -25,10 +29,8 @@ class InformationNetwork:
         В своем ответе используй только кириллические символы.
         Цифры и латиницу использовать строго запрещено!
         """
-
         response = self.openai_processor.process_with_retry(
-            prompt=message, 
-            system_message=system_message,
+            prompt=system_message + '\n' + message, 
             temperature=0.5,
             max_tokens=2000, 
             use_context=use_context

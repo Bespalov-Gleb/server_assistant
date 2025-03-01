@@ -1,6 +1,7 @@
 import logging
 from enum import Enum, auto
 from dotenv import load_dotenv
+from ..utils.user_preferences import UserPreferences
 from .deepseek_processor import DeepSeekProcessor  # Изменили импорт
 from .openai_processor import OpenAIProcessor
 
@@ -14,9 +15,13 @@ class TaskType(Enum):
     REMINDER = auto()
 
 class RouterNetwork:
-    def __init__(self):
+    def __init__(self, user_id):
         self.logger = logging.getLogger(__name__)
+        self.user_preferences = UserPreferences()
+        selected_model = self.user_preferences.get_llm_model(user_id=user_id)
+        
         self.openai_processor = OpenAIProcessor()
+        
 
     def detect_task_type(self, message: str) -> TaskType:
         system_message = """

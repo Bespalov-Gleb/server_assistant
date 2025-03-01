@@ -2,14 +2,15 @@ import os
 import json
 import time
 import logging
+from datetime import datetime
 from typing import List, Dict, Optional
 
 class DialogManager:
     def __init__(
         self, 
-        max_context_length: int = 50, 
-        max_tokens: int = 4000,
-        context_file: str = None
+        max_context_length: int = 100000, 
+        max_tokens: int = 10000,
+        context_file: str = 'temp/dialogue_context.json'
     ):
         """
         Менеджер диалогового контекста
@@ -22,104 +23,133 @@ class DialogManager:
         self.max_context_length = max_context_length
         self.max_tokens = max_tokens
         
-        # Путь для хранения контекста
-        self.context_file = context_file or os.path.join(
-            os.path.dirname(__file__), 
-            '..', 
-            '..', 
-            'temp', 
-            'dialogue_context.json'
-        )
-        
+        self.context_file = context_file or os.path.join('temp', 'dialogue_context.json')
         # Создаем директорию, если не существует
         os.makedirs(os.path.dirname(self.context_file), exist_ok=True)
         
+        self.context = {
+            'messages': [],
+            'task_types': {}
+        }
         # Инициализация контекста
-        self.conversation_history: List[Dict] = self._load_context()
+        self.load_context()
     
-    def _load_context(self) -> List[Dict]:
-        """Загрузка контекста из файла"""
+    def load_context(self):
+        """
+        Загрузка контекста из файла
+        """
         try:
             if os.path.exists(self.context_file):
                 with open(self.context_file, 'r', encoding='utf-8') as f:
-                    return json.load(f)
-            return []
+                    loaded_context = json.load(f)
+                    
+                    # Проверка и восстановление структуры контекста
+                    if isinstance(loaded_context, list):
+                        # Если контекст - список, преобразуем его
+                        self.context['messages'] = loaded_context
+                        self.context['task_types'] = {}
+                    elif isinstance(loaded_context, dict):
+                        # Если контекст - словарь, используем его как есть
+                        self.context = loaded_context
+                    else:
+                        # Если структура неизвестна, сбрасываем к дефолту
+                        self.context = {
+                            'messages': [],
+                            'task_types': {}
+                        }
+            
+            return self.context
+        
         except Exception as e:
             self.logger.error(f"Ошибка загрузки контекста: {e}")
-            return []
-    
-    def _save_context(self):
-        """Сохранение контекста в файл"""
+            return self.context
+
+    def save_context(self):
+        """
+        Сохранение контекста в файл
+        """
         try:
             with open(self.context_file, 'w', encoding='utf-8') as f:
-                json.dump(self.conversation_history, f, ensure_ascii=False, indent=2)
+                json.dump(self.context, f, ensure_ascii=False, indent=2)
         except Exception as e:
             self.logger.error(f"Ошибка сохранения контекста: {e}")
-    
-    def add_message(self, content: str, role: str = 'user'  ):
+
+    def add_message(self, message, role='user', task_type=None):
         """
-        Добавление сообщения в историю
-        
-        :param role: Роль отправителя (user/assistant)
-        :param content: Текст сообщения
+        Добавление сообщения в контекст
         """
-        message = {
-            "role": role,
-            "content": content,
-            "timestamp": time.time()
-        }
-        
-        self.conversation_history.append(message)
-        
-        # Усечение истории по длине
-        if len(self.conversation_history) > self.max_context_length:
-            self.conversation_history.pop(0)
-        
-        self._save_context()
-    
-    def get_context(self, include_system_prompt: bool = True) -> List[Dict]:
-        """
-        Получение контекста для генерации
-        
-        :param include_system_prompt: Добавлять ли системный промпт
-        :return: Список сообщений контекста
-        """
-        context = self.conversation_history.copy()
-        
-        if include_system_prompt:
-            system_prompt = {
-                "role": "system",
-                "content": """
-                Твой владелец - Владимир. Твой создатель - Глеб. 
-        Ты являешься личным ассистентом и помощником. 
-        Ты умеешь запоминать информацию. 
-        Общайся без вводных слов по типу "Конечно, вот несколько вариантов". 
-        Отвечай четко на поставленные вопросы и делай в точности то, о чем тебя просят
-                """
+        try:
+            # Создаем объект сообщения
+            message_entry = {
+                'role': role,
+                'content': message,
+                'task_type': task_type,
+                'timestamp': datetime.now().timestamp()
             }
-            context.insert(0, system_prompt)
+
+            # Добавляем в общий список сообщений
+            self.context['messages'].append(message_entry)
+
+            # Добавляем в список сообщений по типу задачи
+            if task_type:
+                if task_type not in self.context['task_types']:
+                    self.context['task_types'][task_type] = []
+                self.context['task_types'][task_type].append(message_entry)
+
+            # Обрезаем контекст, если превышена максимальная длина
+            if len(self.context['messages']) > self.max_context_length:
+                self.context['messages'] = self.context['messages'][-self.max_context_length:]
+                
+                # Обрезаем контекст для каждого типа задачи
+                for task_type in list(self.context['task_types'].keys()):
+                    if len(self.context['task_types'][task_type]) > self.max_context_length:
+                        self.context['task_types'][task_type] = self.context['task_types'][task_type][-self.max_context_length:]
+
+            # Сохраняем контекст
+            self.save_context()
+
+            self.logger.info(f"Добавлено сообщение. Роль: {role}, Тип задачи: {task_type}")
+            self.logger.info(f"Общее количество сообщений: {len(self.context['messages'])}")
         
-        return context
-    
-    def clear_context(self):
-        """Очистка истории диалога"""
-        self.conversation_history = []
-        self._save_context()
-    
-    def get_last_message(self, role: Optional[str] = None) -> Optional[Dict]:
+        except Exception as e:
+            self.logger.error(f"Ошибка при добавлении сообщения: {e}")
+
+    def get_context(self, task_type=None, include_general=True, hours_to_include=24):
         """
-        Получение последнего сообщения
-        
-        :param role: Фильтр по роли (user/assistant)
-        :return: Последнее сообщение или None
+        Получение контекста с возможностью фильтрации
         """
-        if not self.conversation_history:
-            return None
+        try:
+            # Текущее время
+            current_time = datetime.now().timestamp()
+            
+            # Фильтр по времени (сообщения за последние hours_to_include часов)
+            time_threshold = current_time - (hours_to_include * 3600)
+            
+            # Базовый список сообщений
+            context = []
+            
+            # Добавляем общие сообщения, если включено
+            if include_general:
+                context.extend([
+                    msg for msg in self.context['messages'] 
+                    if msg['timestamp'] >= time_threshold
+                ])
+            
+            # Добавляем сообщения конкретного типа задачи
+            if task_type and task_type in self.context['task_types']:
+                context.extend([
+                    msg for msg in self.context['task_types'][task_type] 
+                    if msg['timestamp'] >= time_threshold
+                ])
+            
+            # Сортируем по времени
+            context.sort(key=lambda x: x['timestamp'])
+            
+            return context
         
-        filtered_history = [
-            msg for msg in self.conversation_history 
-            if role is None or msg['role'] == role
-        ]
-        
-        return filtered_history[-1] if filtered_history else None
-DialogManager = DialogManager
+        except Exception as e:
+            self.logger.error(f"Ошибка при получении контекста: {e}")
+            return []
+
+# Создаем глобальный экземпляр DialogManager
+dialog_manager = DialogManager()

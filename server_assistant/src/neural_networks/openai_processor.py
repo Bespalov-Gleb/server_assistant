@@ -4,12 +4,12 @@ from dotenv import load_dotenv
 from openai import OpenAI
 from typing import Dict, Any, Optional
 from .llm_processor import LLMProcessor
-from .dialog_manager import DialogManager  # Added import for DialogManager
+from .dialog_manager import dialog_manager  # Added import for DialogManager
 
 load_dotenv()
 
 class OpenAIProcessor(LLMProcessor):
-    def __init__(self):
+    def __init__(self, task_type: str = None):
         self.logger = logging.getLogger(__name__)
         api_key = os.getenv('OPENAI_API_KEY')
         
@@ -18,7 +18,8 @@ class OpenAIProcessor(LLMProcessor):
             raise ValueError("Необходимо установить OPENAI_API_KEY в .env файле")
         
         self.client = OpenAI(api_key=api_key)
-        self.dialog_manager = DialogManager()  # Added DialogManager instance
+        self.dialog_manager = dialog_manager  # Added DialogManager instance
+        self.task_type = task_type
 
     def process_with_retry(
         self, 

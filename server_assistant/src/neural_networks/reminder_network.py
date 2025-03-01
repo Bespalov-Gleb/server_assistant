@@ -1,75 +1,110 @@
 import json
-from datetime import datetime
+import re
+from datetime import datetime, timedelta
+import logging
+import traceback
+import asyncio
+from ..utils.user_preferences import UserPreferences
+from .deepseek_processor import DeepSeekProcessor
 from .openai_processor import OpenAIProcessor
 
 class ReminderNetwork:
-    def __init__(self, bot):
-        self.openai_processor = OpenAIProcessor()
-        self.bot = bot # Инициализация менеджера напоминаний
+    def __init__(self, bot, user_id):
+        self.logger = logging.getLogger(__name__)
+        self.user_preferences = UserPreferences()
+        selected_model = self.user_preferences.get_llm_model(user_id=user_id)
+        
+        self.openai_processor = OpenAIProcessor(task_type="REMINDER")
+        self.bot = bot
+        self.user_id = user_id
 
     def generate_response(self, message: str):
         """
-        Отправляет запрос к нейросети для извлечения деталей напоминания.
+        Генерация ответа с деталями напоминания
+        """
+        current_datetime = datetime.now()
+        time_message = f"Текущая дата и время: {current_datetime.isoformat()}"
+        system_message = """
+        Ты помощник, который создает напоминания. 
+        Всегда отвечай ТОЛЬКО в JSON формате с полями:
+        {
+            "text": "текст напоминания",
+            "time": "время напоминания в ISO формате",
+            "type": "one-time или constant"
+        }
+        Примеры:
+        1. Напомнить купить хлеб -> {"text": "Купить хлеб", "time": "2025-02-27T18:00:00", "type": "one-time"}
+        2. Ежедневная зарядка -> {"text": "Зарядка", "time": "2025-02-27T07:00:00", "type": "constant"}
+        """
         
-        :param message: Входящее сообщение от пользователя
-        :return: текст напоминания, время напоминания, тип напоминания
-        """
-        response = self.openai_processor.process_with_retry(
-            prompt=message,
-            system_message=
-            '''Твой владелец - Владимир. Твой создатель - Глеб. 
-        Ты являешься личным ассистентом и помощником. 
-        Ты умеешь запоминать информацию.
-        Ты работаешь в рамках телеграм-бота. 
-        Твоя сессия никогда не заканчивается, поэтому диалог для тебя никогда не прерывается. 
-        Общайся без вводных слов по типу "Конечно, вот несколько вариантов". 
-        Отвечай четко на поставленные вопросы и делай в точности то, о чем тебя просят.
-        Тебе нужно извлечь данные для создания напоминания. А именно:
-        Текст напоминания, то есть что нужно напомнить.
-        Дату и время напоминания.
-        Тип напоминания: однократно(one-time) или на постоянной основе(constant).
-        Верни данные в следующем формате:
-        text = ""
-        date = ДД.ММ.ГГГГ ЧЧ:ММ
-        type = "one-time" или "constant"''',
-            temperature=0.2
-        )
-        self.extract_reminder_details(response)
-
-
-    
-    def extract_reminder_details(self, response):
-        """
-        Извлекает детали напоминания из ответа нейросети.
-        
-        :param response: Ответ от нейросети
-        :return: текст напоминания, время напоминания, тип напоминания
-        """
-        # Предполагаем, что response является JSON-строкой
         try:
-            data = json.loads(response)
-            reminder_text = data.get("reminder_text", "Нет текста напоминания")
-            reminder_time_str = data.get("reminder_time", None)
-            reminder_type = data.get("reminder_type", "one-time")
-
-            # Преобразование строки времени в объект datetime
-            reminder_time = datetime.fromisoformat(reminder_time_str) if reminder_time_str else datetime.now()
-
-            return reminder_text, reminder_time, reminder_type
-        except (json.JSONDecodeError, ValueError) as e:
-            # Обработка ошибок парсинга
-            print(f"Ошибка при извлечении данных о напоминании: {e}")
-            return None, None, None
-
-    def create_reminder(self, message: str):
-        """
-        Создает напоминание на основе входящего сообщения.
+            # Добавляем контекст сообщения в системное сообщение
+            full_prompt = system_message + '\n' + time_message + '\n' + 'Запрос пользователя: ' + message
+            
+            # Получаем ответ от OpenAI
+            response = self.openai_processor.process_with_retry(
+                prompt=full_prompt,
+                temperature=0.2
+            )
+            
+            # Логируем полный ответ
+            self.logger.info(f"Полный ответ от OpenAI: {response}")
+            
+            # Извлекаем JSON из ответа
+            return self.parse_reminder_json(response)
         
-        :param message: Входящее сообщение от пользователя
+        except Exception as e:
+            self.logger.error(f"Ошибка в generate_response: {e}")
+            self.logger.error(traceback.format_exc())
+            return None
+
+    def parse_reminder_json(self, response: str):
         """
-        reminder_text, reminder_time, reminder_type = self.generate_response(message)
-        if reminder_text and reminder_time:
-            self.bot.add_reminder(reminder_text, reminder_time, reminder_type)
-            return f"Напоминание '{reminder_text}' установлено на {reminder_time.strftime('%Y-%m-%d %H:%M:%S')}."
-        else:
-            return "Не удалось создать напоминание."
+        Парсинг JSON с деталями напоминания
+        """
+        try:
+            # Извлечение JSON из текста с помощью регулярного выражения
+            json_match = re.search(r'\{[^{}]+\}', response)
+            if json_match:
+                json_str = json_match.group(0)
+                reminder_data = json.loads(json_str)
+                
+                # Валидация полей
+                if not all(key in reminder_data for key in ['text', 'time', 'type']):
+                    self.logger.error(f"Неполный JSON: {reminder_data}")
+                    return None
+                
+                # Парсинг времени
+                reminder_time = datetime.fromisoformat(reminder_data['time'])
+                
+                return (
+                    reminder_data['text'], 
+                    reminder_time, 
+                    reminder_data['type']
+                )
+            
+            self.logger.error(f"Не найден JSON в ответе: {response}")
+            return None
+        
+        except (json.JSONDecodeError, ValueError) as e:
+            self.logger.error(f"Ошибка парсинга JSON: {e}")
+            self.logger.error(f"Проблемный ответ: {response}")
+            return None
+
+    async def create_reminder(self, message: str):
+        """
+        Обработка сообщения и создание напоминания
+        """
+        try:
+            # Получаем детали напоминания
+            reminder_details = self.generate_response(message)
+            
+            if reminder_details:
+                reminder_text, reminder_time, reminder_type = reminder_details
+                return ["Запуск", reminder_text, reminder_time, reminder_type]
+            
+            return "Не удалось распознать детали напоминания."
+        
+        except Exception as e:
+            self.logger.error(f"Ошибка в process_reminder: {e}")
+            return "Произошла ошибка при создании напоминания."
