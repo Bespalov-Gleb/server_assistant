@@ -1,23 +1,23 @@
 import os
 import logging
+import asyncio
+import json
+from datetime import datetime, timedelta
+
 from dotenv import load_dotenv
-import telebot
-from telebot.types import Message, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
-import sys
+from aiogram import Bot, Dispatcher, types
+from aiogram.filters import Command
+from aiogram.types import BufferedInputFile
 
-# Добавляем путь к корневой директории проекта
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
+import aiofiles
 
-# Импорты компонентов
+from src.neural_networks.router_network import OutputType
 from src.neural_networks.guide_network import GuideNetwork
-from src.neural_networks.deepseek_processor import DeepSeekProcessor
-from src.neural_networks.openai_processor import OpenAIProcessor
+from src.neural_networks.dialog_manager import DialogManager
+from src.utils.user_preferences import UserPreferences
 from src.audio_processing.speech_recognition import AudioTranscriber
 from src.audio_processing.voice_synthesis import VoiceSynthesizer
-from src.utils.user_preferences import UserPreferences
-
-# Загрузка переменных окружения
-load_dotenv()
+import glob
 
 # Настройка логирования
 logging.basicConfig(
@@ -26,366 +26,337 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Загрузка переменных окружения
+load_dotenv()
+
 class TelegramAssistantBot:
     def __init__(self):
-        # Инициализация токена и бота
+        # Загрузка токена бота
         self.token = os.getenv('TELEGRAM_BOT_TOKEN')
         if not self.token:
             raise ValueError("Telegram Bot Token не найден в переменных окружения")
         
-        self.bot = telebot.TeleBot(self.token)
+        self.bot = Bot(token=self.token)
+        self.dp = Dispatcher()
+        self.logger = logger
+        
+        self.reminder_file = 'temp/reminders.json'
+        self.reminders = []  # Инициализируем пустым списком    
         
         # Инициализация компонентов
-        self.guide_network = GuideNetwork()
+        self.user_preferences = UserPreferences()
         self.audio_transcriber = AudioTranscriber()
         self.voice_synthesizer = VoiceSynthesizer()
-        self.user_preferences = UserPreferences()
-        
-        # Словарь процессоров
-        self.llm_processors = {
-            'deepseek': DeepSeekProcessor(),
-            'openai': OpenAIProcessor()
-        }
+        self.dialog_manager = DialogManager()
         
         # Регистрация обработчиков
         self._register_handlers()
+        
+        # Запуск мониторинга напоминаний
+        asyncio.create_task(self.initialize_reminders())
+        asyncio.create_task(self.start_reminder_monitoring())
 
-    def _process_message(self, text: str, user_id: int) -> str:
-        """
-        Обработка сообщения с учетом выбранной модели и автоматическим переключением
-        
-        :param text: Текст сообщения
-        :param user_id: ID пользователя
-        :return: Сгенерированный ответ
-        """
-        # Получаем предпочтительную модель пользователя
-        model = self.user_preferences.get_llm_model(user_id)
-        
-        # Выбираем процессор
-        processor = self.llm_processors.get(model, self.llm_processors['deepseek'])
-        
-        # Обработка сообщения через выбранную модель
-        response = processor.process_with_retry(text)
-        
-        # Если ответ None или содержит сообщение о переключении, пробуем OpenAI
-        if (response is None or 
-            (isinstance(response, str) and "❌ Извините, закончились средства" in response)):
+    async def initialize_reminders(self):
+        """Асинхронная инициализация напоминаний"""
+        try:
+            # Загружаем напоминания
+            self.reminders = await self.load_reminders()
+            self.logger.info(f"Загружено {len(self.reminders)} напоминаний")
+        except Exception as e:
+            self.logger.error(f"Ошибка инициализации напоминаний: {e}")
+            self.reminders = []
+
+    async def load_reminders(self):
+        try:
+            if os.path.exists(self.reminder_file):
+                async with aiofiles.open(self.reminder_file, 'r', encoding='utf-8') as f:
+                    content = await f.read()
+                    # Явная проверка на пустую строку или пустой JSON
+                    if content.strip() in ['', '[]', 'null']:
+                        return []
+                    try:
+                        return json.loads(content)
+                    except json.JSONDecodeError:
+                        self.logger.error(f"Ошибка декодирования JSON: {content}")
+                        return []
+            else:
+                # Создаем файл с пустым списком, если он не существует
+                async with aiofiles.open(self.reminder_file, 'w', encoding='utf-8') as f:
+                    await f.write('[]')
+                return []
+        except Exception as e:
+            self.logger.error(f"Ошибка при загрузке напоминаний: {e}")
+            return []
+
+    async def save_reminders(self):
+        try:
+            async with aiofiles.open(self.reminder_file, 'w', encoding='utf-8') as f:
+                await f.write(json.dumps(self.reminders, ensure_ascii=False))
             
-            self.logger.warning(f"Не удалось получить ответ от {model}, переключаемся на OpenAI")
+            self.logger.info(f"Сохранено {len(self.reminders)} напоминаний")
+        except Exception as e:
+            self.logger.error(f"Ошибка сохранения напоминаний: {e}")
+
+    async def add_reminder(self, reminder_text, reminder_time, reminder_type='one-time', user_id=None):
+        try:
+            self.logger.info(f"Добавление напоминания: {reminder_text}, время: {reminder_time}, тип: {reminder_type}")
             
-            # Принудительное переключение на OpenAI
-            processor = self.llm_processors['openai']
-            response = processor.process_with_retry(text)
+            reminder = {
+                'id': len(self.reminders) + 1,
+                'text': reminder_text,
+                'time': reminder_time.isoformat(),
+                'type': reminder_type,
+                'user_id': user_id
+            }
             
-            # Автоматическое обновление модели пользователя
-            if response is not None:
-                self.user_preferences.set_llm_model(user_id, 'openai')
-                self.logger.info(f"Модель для пользователя {user_id} автоматически переключена на OpenAI")
+            self.reminders.append(reminder)
+            await self.save_reminders()
+            
+            self.logger.info(f"Напоминание успешно добавлено. Текущий список: {self.reminders}")
+            
+            # Запуск потока для уведомления
+            asyncio.create_task(self.wait_and_notify(reminder))
+            return reminder
+        except Exception as e:
+            self.logger.error(f"Ошибка при добавлении напоминания: {e}")
+            return None
+
+    async def wait_and_notify(self, reminder):
+        try:
+            reminder_time = datetime.fromisoformat(reminder['time'])
+            time_to_wait = max((reminder_time - datetime.now()).total_seconds(), 0)
+            await asyncio.sleep(time_to_wait)
+            message_text = f"Напоминание: {reminder['text']}"
+
+            # Отправка сообщения пользователю
+            user_id = reminder['user_id']  # Получаем ID пользователя
+            try:
+                await self.bot.send_message(user_id, message_text)
+            except Exception as send_error:
+                self.logger.error(f"Ошибка отправки напоминания: {send_error}")
+            
+            self.reminders = [rem for rem in self.reminders if rem['id'] != reminder['id']]
+            await self.save_reminders()
+            
+            # Для постоянных напоминаний создаем новое
+            if reminder['type'] == 'constant':
+                new_reminder_time = reminder_time + timedelta(days=1)
+                await self.add_reminder(
+                    reminder['text'], 
+                    new_reminder_time, 
+                    'constant', 
+                    user_id
+                )   
+        except Exception as e:
+            self.logger.error(f"Ошибка в wait_and_notify: {e}")
+
+    async def start_reminder_monitoring(self):
+        # Небольшая задержка для инициализации
+        await asyncio.sleep(5)
+        """Асинхронная инициализация напоминаний"""
+        while True:
+            try:
+                now = datetime.now()
+                active_reminders = [
+                    reminder for reminder in self.reminders 
+                    if datetime.fromisoformat(reminder['time']) <= now
+                ]
+                
+                for reminder in active_reminders:
+                    asyncio.create_task(self.wait_and_notify(reminder))
+                    
+                # Удаляем обработанные напоминания
+                self.reminders = [
+                    rem for rem in self.reminders 
+                    if datetime.fromisoformat(rem['time']) > now
+                ]
+                await self.save_reminders()
+                
+                # Ожидание перед следующей проверкой
+                await asyncio.sleep(60)
+            
+            except Exception as e:
+                self.logger.error(f"Ошибка в мониторинге напоминаний: {e}")
+                await asyncio.sleep(60)
+
+    async def _process_message(self, text: str, user_id: int):
+        """Обработка сообщения с учетом выбранной модели и автоматическим переключением"""
+        guide_network = GuideNetwork(bot=self.bot, user_id=user_id)
+        response, output_type = await guide_network.process_message(text)
+        if isinstance(response, list):
+            if response[0] == "Запуск":
+                await self.add_reminder(response[1], response[2], response[3], user_id=user_id)
+                response = f"Установлено напоминание {response[1]} на {response[2]}"
         
-        return response
+        return response, output_type
 
     def _register_handlers(self):
         """Регистрация обработчиков команд и сообщений"""
-        @self.bot.message_handler(commands=['start', 'help'])
-        def send_welcome(message: Message):
+        @self.dp.message(Command('start'))
+        async def send_welcome(message: types.Message):
             """Обработчик команд /start и /help"""
             welcome_text = (
                 "👋 Привет! Я твой умный ассистент. \n\n"
-                "Могу помочь с:\n"
-                "• Информационными запросами\n"
-                "• Решением задач\n"
-                "• Голосовым взаимодействием\n\n"
-                "Доступные команды:\n"
-                "• /select_model - выбрать модель ИИ\n"
-                "• /switch_model - переключить модель\n"
-                "• /check_balance - проверить баланс API\n\n"
+                "Я могу:\n"
+                "✉️ Общаться на разные темы\n"
+                "🔍 Искать информацию\n"
+                "📅 Создавать напоминания\n"
+                "🔊 Принимать голосовые сообщения\n\n"
                 "Отправь голосовое или текстовое сообщение для общения!"
             )
             
-            # Создаем клавиатуру с режимами
-            markup = ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
-            markup.add(
-                KeyboardButton('🔊 Голосовой режим'),
-                KeyboardButton('📝 Текстовый режим')
-            )
-            
-            self.bot.reply_to(message, welcome_text, reply_markup=markup)
+            await message.answer(welcome_text)
 
-        @self.bot.message_handler(commands=['select_model'])
-        def select_model(message: Message):
-            """Выбор модели LLM"""
-            markup = ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
-            markup.add(
-                KeyboardButton('🤖 DeepSeek'),
-                KeyboardButton('🌐 ChatGPT')
-            )
-            self.bot.reply_to(
-                message, 
-                "Выберите модель для генерации ответов:", 
-                reply_markup=markup
-            )
-
-        @self.bot.message_handler(func=lambda message: message.text in ['🤖 DeepSeek', '🌐 ChatGPT'])
-        def set_model(message: Message):
-            """Установка выбранной модели"""
-            model_map = {
-                '🤖 DeepSeek': 'deepseek',
-                '🌐 ChatGPT': 'openai'
-            }
-            model_name = model_map.get(message.text, 'deepseek')
-            
-            # Проверка валидности API-ключа
-            processor = self.llm_processors[model_name]
-            if processor.validate_api_key():
-                self.user_preferences.set_llm_model(message.from_user.id, model_name)
-                model_info = processor.get_model_info()
-                
-                response = (
-                    f"✅ Выбрана модель: {model_info['name']}\n"
-                    f"Провайдер: {model_info['provider']}\n"
-                    f"Модель по умолчанию: {model_info['default_model']}"
-                )
-                
-                # Возвращаем стандартную клавиатуру
-                markup = ReplyKeyboardRemove()
-                self.bot.reply_to(message, response, reply_markup=markup)
-            else:
-                self.bot.reply_to(
-                    message, 
-                    "❌ Не удалось проверить API-ключ. Пожалуйста, проверьте настройки."
-                )
-
-        @self.bot.message_handler(commands=['switch_model'])
-        def switch_model(message: Message):
-            """Принудительное переключение между моделями"""
-            user_id = message.from_user.id
-            current_model = self.user_preferences.get_llm_model(user_id)
-            
-            # Переключаем на альтернативную модель
-            new_model = 'openai' if current_model == 'deepseek' else 'deepseek'
-            
-            # Проверяем валидность нового API-ключа
-            new_processor = self.llm_processors[new_model]
-            if new_processor.validate_api_key():
-                self.user_preferences.set_llm_model(user_id, new_model)
-                model_info = new_processor.get_model_info()
-                
-                response = (
-                    f"🔄 Модель переключена на {model_info['name']}\n"
-                    f"Провайдер: {model_info['provider']}"
-                )
-                self.bot.reply_to(message, response)
-            else:
-                self.bot.reply_to(
-                    message, 
-                    f"❌ Не удалось переключиться на {new_model}. Проверьте API-ключ."
-                )
-
-        @self.bot.message_handler(commands=['check_balance'])
-        def check_balance(message: Message):
-            """Проверка баланса текущей модели"""
-            user_id = message.from_user.id
-            model = self.user_preferences.get_llm_model(user_id)
-            
-            processor = self.llm_processors.get(model, self.llm_processors['deepseek'])
-            
-            if model == 'deepseek':
-                if processor.validate_api_key():
-                    self.bot.reply_to(message, "✅ DeepSeek: API-ключ активен")
-                else:
-                    self.bot.reply_to(message, "❌ DeepSeek: Недостаточно средств или проблемы с ключом")
-            elif model == 'openai':
-                if processor.validate_api_key():
-                    self.bot.reply_to(message, "✅ OpenAI: API-ключ активен")
-                else:
-                    self.bot.reply_to(message, "❌ OpenAI: Проблемы с ключом")
-
-        @self.bot.message_handler(func=lambda message: message.text == '🔊 Голосовой режим')
-        def voice_mode(message: Message):
-            """Включение голосового режима"""
-            self.user_preferences.set_user_mode(message.from_user.id, 'voice')
-            self.bot.reply_to(
-                message, 
-                "✅ Включен голосовой режим. Теперь я буду отвечать голосовыми сообщениями."
-            )
-
-        @self.bot.message_handler(func=lambda message: message.text == '📝 Текстовый режим')
-        def text_mode(message: Message):
-            """Включение текстового режима"""
-            self.user_preferences.set_user_mode(message.from_user.id, 'text')
-            self.bot.reply_to(
-                message, 
-                "✅ Включен текстовый режим. Я буду отвечать текстовыми сообщениями."
-            )
-
-        @self.bot.message_handler(content_types=['text'])
-        def handle_text_message(message: Message):
-            """Обработчик текстовых сообщений"""
-            try:
-                # Логирование входящего сообщения
-                logger.info(f"Получено текстовое сообщение от {message.from_user.username}: {message.text}")
-                
-                # Обработка сообщения
-                response = self._process_message(message.text, message.from_user.id)
-                
-                # Проверяем, что ответ не пустой
-                if not response:
-                    response = "Извините, не удалось сгенерировать ответ. Попробуйте позже."
-                
-                # Проверяем режим пользователя
-                user_mode = self.user_preferences.get_user_mode(message.from_user.id)
-                
-                if user_mode == 'voice':
-                    # Генерируем голосовой ответ
-                    voice_response = self.voice_synthesizer.text_to_speech(
-                        response, 
-                        output_file=f'temp_response_{message.message_id}.ogg'
-                    )
-                    
-                    # Отправляем голосовой ответ
-                    if voice_response:
-                        with open(voice_response, 'rb') as voice:
-                            self.bot.send_voice(message.chat.id, voice)
-                        os.remove(voice_response)
-                else:
-                    # Отправляем текстовый ответ
-                    self.bot.reply_to(message, response)
-                
-                # Логирование исходящего сообщения
-                logger.info(f"Отправлен ответ: {response}")
-            
-            except Exception as e:
-                # Обработка непредвиденных ошибок
-                error_message = "Извините, произошла ошибка при обработке сообщения."
-                self.bot.reply_to(message, error_message)
-                logger.error(f"Ошибка при обработке текстового сообщения: {e}", exc_info=True)
-
-        @self.bot.message_handler(content_types=['voice'])
-        def handle_voice_message(message: Message):
-            try:
-                # Создаем директорию для временных файлов с использованием абсолютного пути
-                base_dir = os.path.dirname(os.path.abspath(__file__))
-                project_root = os.path.abspath(os.path.join(base_dir, '..', '..'))
-                temp_dir = os.path.join(project_root, 'temp')
-                
-                # Создаем директорию с полными правами
-                os.makedirs(temp_dir, mode=0o777, exist_ok=True)
-                
-                # Скачиваем голосовое сообщение
-                voice_file = self.bot.get_file(message.voice.file_id)
-                downloaded_file = self.bot.download_file(voice_file.file_path)
-                
-                # Сохраняем файл с полным путем во временной директории
-                voice_path = os.path.join(temp_dir, f'temp_voice_{message.message_id}.oga')
-                
-                # Диагностика путей
-                logger.info(f"Base directory: {base_dir}")
-                logger.info(f"Project root: {project_root}")
-                logger.info(f"Temp directory: {temp_dir}")
-                logger.info(f"Voice file path: {voice_path}")
-                
+        @self.dp.message()
+        async def handle_message(message: types.Message):
+            """Универсальный обработчик сообщений"""
+            response = "Произошла ошибка при обработке вашего запроса."
+            if message.content_type == types.ContentType.TEXT:
                 try:
-                    with open(voice_path, 'wb') as new_file:
-                        new_file.write(downloaded_file)
+                    # Генерация текстового ответа
+                    response, output_type = await self._process_message(message.text, message.from_user.id)
                     
-                    # Проверка существования и размера файла
-                    if not os.path.exists(voice_path):
-                        raise FileNotFoundError(f"Файл не создан: {voice_path}")
-                    
-                    file_size = os.path.getsize(voice_path)
-                    logger.info(f"Размер файла: {file_size} байт")
-                    
-                    if file_size == 0:
-                        raise ValueError("Файл пустой")
+                    if output_type == OutputType.TEXT:  
+                        if response:
+                            await message.reply(response)
+                        else:
+                            response = "Извините, не удалось сгенерировать ответ. Попробуйте позже."
+                            await message.reply(response)
+                    elif output_type == OutputType.AUDIO:
+                        if response:
+                            # Синтез голосового ответа
+                            voice_response_path = self.voice_synthesizer.text_to_speech(response)
+                            
+                            # Отправка голосового ответа
+                            with open(voice_response_path, 'rb') as voice_file:
+                                await message.answer_voice(BufferedInputFile(voice_file.read(), 'voice.oga'))
+                            
+                            # Удаление временных файлов
+                            os.remove(voice_response_path)
+
+                            await self._cleanup_temp_audio_files()
+                    elif output_type == OutputType.MULTI:
+                        if response:
+                            await message.reply(response)
+                            # Синтез голосового ответа
+                            voice_response_path = self.voice_synthesizer.text_to_speech(response)
+                            
+                            # Отправка голосового ответа
+                            with open(voice_response_path, 'rb') as voice_file:
+                                await message.answer_voice(BufferedInputFile(voice_file.read(), 'voice.oga'))
+                            
+                            # Удаление временных файлов
+                            os.remove(voice_response_path)
+                    elif output_type == OutputType.DEFAULT:
+                        if response:
+                            await message.reply(response)
+                        else:
+                            response = "Извините, не удалось сгенерировать ответ. Попробуйте позже."
+                            await message.reply(response)
                 
                 except Exception as e:
-                    logger.error(f"Ошибка сохранения файла: {e}")
-                    raise
+                    self.logger.error(f"Ошибка обработки текстового сообщения: {e}")
+                    await message.reply("Произошла ошибка при обработке сообщения.")
+
+            elif message.content_type == types.ContentType.VOICE:
+                await handle_voice_message(message)
+
+        @self.dp.message(lambda message: message.content_type == types.ContentType.VOICE)
+        async def handle_voice_message(message: types.Message):
+            """Обработчик голосовых сообщений"""
+            try:
+                # Получаем информацию о файле
+                voice_file = message.voice
+                self.logger.info('Скачивание голосового сообщения')
+                destination = os.path.join('temp', f'voice_{message.from_user.id}_{message.message_id}.oga')
+                await self.bot.download(voice_file.file_id, destination=destination)
+                self.logger.info(f'Скачивание голосового сообщения завершено. Путь: {destination}')
                 
-                # Распознаем текст
-                text = self.audio_transcriber.transcribe_audio(voice_path)
+                # Транскрибация аудио
+                transcribed_text = self.audio_transcriber.transcribe_audio(destination)
+                self.logger.info('Транскрибация аудио завершена')
                 
-                # Диагностика распознавания
-                logger.info(f"Распознанный текст: {text}")
+                if transcribed_text:
+                    self.dialog_manager.add_message(transcribed_text, role='user_voice')
+                    # Генерация ответа на основе транскрибированного текста
+                    response, output_type = await self._process_message(transcribed_text, message.from_user.id)
+                    
+                    if output_type == OutputType.TEXT:  
+                        if response:
+                            await message.reply(response)
+                        else:
+                            response = "Извините, не удалось сгенерировать ответ. Попробуйте позже."
+                            await message.reply(response)
+                    elif output_type == OutputType.AUDIO:
+                        if response:
+                            # Синтез голосового ответа
+                            voice_response_path = self.voice_synthesizer.text_to_speech(response)
+                            
+                            # Отправка голосового ответа
+                            with open(voice_response_path, 'rb') as voice_file:
+                                await message.answer_voice(BufferedInputFile(voice_file.read(), 'voice.oga'))
+                            
+                            # Удаление временных файлов
+                            os.remove(voice_response_path)
+                    elif output_type == OutputType.MULTI:
+                        if response:
+                            await message.reply(response)
+                            # Синтез голосового ответа
+                            voice_response_path = self.voice_synthesizer.text_to_speech(response)
+                            
+                            # Отправка голосового ответа
+                            with open(voice_response_path, 'rb') as voice_file:
+                                await message.answer_voice(BufferedInputFile(voice_file.read(), 'voice.oga'))
+                            
+                            # Удаление временных файлов
+                            os.remove(voice_response_path)
+                    elif output_type == OutputType.DEFAULT:
+                        if response:
+                            # Синтез голосового ответа
+                            voice_response_path = self.voice_synthesizer.text_to_speech(response)
+                            
+                            # Отправка голосового ответа
+                            with open(voice_response_path, 'rb') as voice_file:
+                                await message.answer_voice(BufferedInputFile(voice_file.read(), 'voice.oga'))
+                            
+                            # Удаление временных файлов
+                            os.remove(voice_response_path)
                 
-                # Обрабатываем сообщение
-                response = self._process_message(text, message.from_user.id)
-                
-                # Проверяем, что ответ не пустой
-                if not response:
-                    response = "Извините, не удалось сгенерировать ответ. Попробуйте позже."
-                
-                # Генерируем голосовой ответ
-                voice_response = self.voice_synthesizer.text_to_speech(
-                    response, 
-                    output_file=os.path.join(temp_dir, f'temp_response_{message.message_id}.oga')
-                )
-                
-                # Отправляем голосовой ответ
-                if voice_response:
-                    with open(voice_response, 'rb') as voice:
-                        self.bot.send_voice(message.chat.id, voice)
-                    os.remove(voice_response)
-                
-                # Очищаем временные файлы
-                os.remove(voice_path)
-                
-                # Очистка временной директории от аудиофайлов
-                self._cleanup_temp_audio_files(temp_dir)
+                # Удаление временного файла
+                os.remove(destination)
+                await self._cleanup_temp_audio_files()
             
             except Exception as e:
-                logger.error(f"Ошибка обработки голосового сообщения: {e}", exc_info=True)
-                self.bot.reply_to(message, "Извините, не удалось обработать голосовое сообщение")
-
-    def _cleanup_temp_audio_files(self, temp_dir: str):
+                logger.error(f"Ошибка обработки голосового сообщения: {e}")
+                await message.reply("Не удалось обработать голосовое сообщение.")
+    async def _cleanup_temp_audio_files(self):
         """
-        Очистка временной директории от аудиофайлов
-        
-        :param temp_dir: Путь к временной директории
+        Удаляет все .wav файлы из временной директории после отправки
         """
         try:
-            # Список расширений для удаления
-            audio_extensions = ['.wav', '.oga', '.ogg', '.mp3']
-            
-            # Счетчики для логирования
-            deleted_files = 0
-            total_files = 0
-            
-            # Перебираем все файлы во временной директории
-            for filename in os.listdir(temp_dir):
-                file_path = os.path.join(temp_dir, filename)
-                
-                # Проверяем, что это файл и имеет аудио расширение
-                if os.path.isfile(file_path) and any(filename.lower().endswith(ext) for ext in audio_extensions):
-                    total_files += 1
-                    try:
-                        os.remove(file_path)
-                        deleted_files += 1
-                    except Exception as e:
-                        logger.warning(f"Не удалось удалить файл {filename}: {e}")
-            
-            # Логируем результат
-            if total_files > 0:
-                logger.info(f"Очищено {deleted_files} из {total_files} аудиофайлов во временной директории")
-        
+            wav_files = glob.glob(os.path.join('temp', '*.wav'))
+            for file_path in wav_files:
+                try:
+                    os.remove(file_path)
+                    self.logger.info(f"Удален временный аудиофайл: {file_path}")
+                except Exception as e:
+                    self.logger.error(f"Ошибка удаления файла {file_path}: {e}")
         except Exception as e:
-            logger.error(f"Ошибка при очистке временной директории: {e}", exc_info=True)
+            self.logger.error(f"Ошибка при очистке временных аудиофайлов: {e}")
 
-    def start(self):
+
+    async def start(self):
         """Запуск бота"""
-        try:
-            logger.info("Запуск Telegram-бота")
-            self.bot.polling(none_stop=True)
-        except Exception as e:
-            logger.error(f"Ошибка при запуске бота: {e}", exc_info=True)
+        self.logger.info("Telegram бот запущен")
+        await self.dp.start_polling(self.bot)
 
-def main():
-    """Точка входа для запуска бота"""
-    try:
-        bot = TelegramAssistantBot()
-        bot.start()
-    except Exception as e:
-        logger.critical(f"Критическая ошибка при запуске бота: {e}", exc_info=True)
+async def main():
+    # Настройка логирования
+    logging.basicConfig(level=logging.INFO)
+    
+    # Создание и запуск бота
+    bot = TelegramAssistantBot()
+    await bot.start()
 
 if __name__ == '__main__':
-    main()
+    asyncio.run(main())

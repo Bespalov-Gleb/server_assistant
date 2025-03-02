@@ -8,6 +8,7 @@ import soundfile as sf
 import librosa
 import numpy as np
 
+
 def find_ffmpeg_path():
     """
     Найти путь к FFmpeg в системе с расширенной диагностикой
@@ -147,9 +148,11 @@ class AudioTranscriber:
             
             # Конвертация файла, если необходимо
             if not audio_path.lower().endswith('.wav'):
+                self.logger.info("Конвертация файла в формат .wav")
                 audio_path = self._convert_audio(audio_path)
             
             # Прямая загрузка аудио с использованием soundfile
+            self.logger.info("Конвертация завершена")
             audio_data, sample_rate = sf.read(audio_path)
             
             # Логирование параметров аудио

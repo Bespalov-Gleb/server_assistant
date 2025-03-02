@@ -48,26 +48,4 @@ class UserPreferences:
         
         return user_prefs.get('model', default)
 
-    def set_user_mode(self, user_id: int, mode: str):
-        """Установка режима для пользователя"""
-        user_id_str = str(user_id)
-        if user_id_str not in self.preferences:
-            self.preferences[user_id_str] = {}
-        
-        # Гарантируем, что значение - словарь
-        if not isinstance(self.preferences[user_id_str], dict):
-            self.preferences[user_id_str] = {}
-        
-        self.preferences[user_id_str]['mode'] = mode
-        self._save_preferences()
-
-    def get_user_mode(self, user_id: int, default: str = 'text'):
-        """Получение режима для пользователя"""
-        user_id_str = str(user_id)
-        user_prefs = self.preferences.get(user_id_str, {})
-        
-        # Если user_prefs не словарь, возвращаем дефолтное значение
-        if not isinstance(user_prefs, dict):
-            return default
-        
-        return user_prefs.get('mode', default)
+    
