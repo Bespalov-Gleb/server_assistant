@@ -13,6 +13,14 @@ class TaskType(Enum):
     FUNCTIONAL = auto()
     INFORMATION = auto()
     REMINDER = auto()
+    ADD_MEMORY = auto()
+    RECALL_MEMORY = auto()
+
+class OutputType(Enum):
+    TEXT = auto()
+    AUDIO = auto()
+    MULTI = auto()
+    DEFAULT = auto()
 
 class RouterNetwork:
     def __init__(self, user_id):
@@ -21,7 +29,47 @@ class RouterNetwork:
         selected_model = self.user_preferences.get_llm_model(user_id=user_id)
         
         self.openai_processor = OpenAIProcessor()
-        
+    
+    def detect_output_type(self, message: str) -> OutputType:
+        system_message = """
+        Ты - профессиональный классификатор.
+        Твоя задача - определить тип ответа, который хочет пользователь.
+        В ответе укажи только тип. 
+        Определи тип ТОЧНО:
+
+        1. TEXT: 
+           - Пользователь явно говорит о том, что ответ должен быть текстовым
+           - Например:"Напиши текстом", "Ответь текстовым сообщением"
+
+        2. AUDIO:
+           - Пользователь явно говорит о том, что ответ должен быть в виде голосового сообщения
+           - Например: "Ответь голосовым", "Расскажи в голосовом", "Ответь голосовым сообщением"
+        3. MULTI:
+           - ОБЯЗАТЕЛЬНО используй этот тип, когда пользователь просит что-то напомнить, составить план
+        4. DEFAULT:
+            - Если пользователь не указывает желаемый тип ответа, не просит напомнить что-то, составить план и т.д.
+        """
+        classification = self.openai_processor.process_with_retry(
+            prompt=system_message + '\n' + message, 
+            temperature=0.5,
+            max_tokens=2000
+        )
+        self.logger.info(f"Классификация типа ответа: {classification}")
+        # Логика распознавания типа задачи
+        if classification:
+            classification = classification.upper()
+            if 'TEXT' in classification:
+                return OutputType.TEXT
+            elif 'AUDIO' in classification:
+                return OutputType.AUDIO
+            elif 'MULTI' in classification:
+                return OutputType.MULTI
+            elif 'DEFAULT' in classification:
+                return OutputType.DEFAULT
+
+        # Fallback - по умолчанию SMALL_TALK
+        self.logger.warning(f"Не удалось определить тип ответа для: {message}")
+        return OutputType.TEXT
 
     def detect_task_type(self, message: str) -> TaskType:
         system_message = """
@@ -59,6 +107,22 @@ class RouterNetwork:
             - Просьба напомнить что-либо
             - Просба написать через какое-то время
             - Например: "Напомни сегодня в 16 часов встретить жену с салона"
+        6. ADD_MEMORY:
+            - Пользователь просит запомнить информацию, при этом не указывает время
+            - Фиксация каких-то данных
+            - Создание заметки
+            - Например: "Запомни, мне нравится шоколад Alpen Gold"
+        7. RECALL_MEMORY:
+            - Пользователь просит вспомнить что-либо
+            - Если пользователь говорит "напомни", при этом не указывая время, то
+            в большинстве случаев этот запрос относится к данному типу
+            - Например: "Напомни мне, какой шоколад мне понравился?"
+
+        ВАЖНО! Основное различие между типами ADD_MEMORY и REMINDER:
+        Тип ADD_MEMORY - это тип для создания заметок, записей. В заметках не указывается дата и время
+        Тип REMINDER - это тип для создания напоминаний. В них указывается дата и время обязательно!
+        Тип RECALL_MEMORY - это тип для поиска в памяти информации по запросу пользователя. 
+        Обращай особое вниание на различие ADD_MEMORY и RECALL_MEMORY.
         """
 
         classification = self.openai_processor.process_with_retry(
@@ -80,6 +144,10 @@ class RouterNetwork:
                 return TaskType.INFORMATION
             elif 'REMINDER' in classification:
                 return TaskType.REMINDER
+            elif 'ADD_MEMORY' in classification:
+                return TaskType.ADD_MEMORY
+            elif 'RECALL_MEMORY' in classification:
+                return TaskType.RECALL_MEMORY
 
         # Fallback - по умолчанию SMALL_TALK
         self.logger.warning(f"Не удалось определить тип задачи для: {message}")
