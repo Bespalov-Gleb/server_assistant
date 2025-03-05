@@ -23,7 +23,7 @@ class DialogManager:
         self.max_context_length = max_context_length
         self.max_tokens = max_tokens
         
-        self.context_file = context_file or os.path.join('temp', 'dialogue_context.json')
+        self.context_file = context_file
         # Создаем директорию, если не существует
         os.makedirs(os.path.dirname(self.context_file), exist_ok=True)
         
