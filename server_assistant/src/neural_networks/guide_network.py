@@ -42,6 +42,14 @@ class GuideNetwork:
             elif task_type == TaskType.ADD_MEMORY:
                 self.logger.info("Приступил к добавлению заметки")
                 return await self.memory_network.add_memory(message)
+            elif task_type == TaskType.DELETE_MEMORY:
+                return await self.memory_network.delete_memory(message)
+            elif task_type == TaskType.DELETE_ALL_MEMORIES:
+                return self.memory_network.delete_all_memories()
+            elif task_type == TaskType.CHANGE_MEMORY:
+                return await self.memory_network.change_memory(message)
+            elif task_type == TaskType.VIEW_MEMORIES:
+                return self.memory_network.get_all_notes()
             else:
                 # Fallback для функциональных задач
                 return "Извините, я не могу обработать это сообщение."

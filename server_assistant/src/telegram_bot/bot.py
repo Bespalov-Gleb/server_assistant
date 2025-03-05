@@ -234,7 +234,6 @@ class TelegramAssistantBot:
                             # Удаление временных файлов
                             os.remove(voice_response_path)
 
-                            await self._cleanup_temp_audio_files()
                     elif output_type == OutputType.MULTI:
                         if response:
                             await message.reply(response)
@@ -324,7 +323,6 @@ class TelegramAssistantBot:
                 
                 # Удаление временного файла
                 os.remove(destination)
-                await self._cleanup_temp_audio_files()
             
             except Exception as e:
                 logger.error(f"Ошибка обработки голосового сообщения: {e}")

@@ -14,7 +14,7 @@ class ReminderNetwork:
         self.user_preferences = UserPreferences()
         selected_model = self.user_preferences.get_llm_model(user_id=user_id)
         
-        self.openai_processor = OpenAIProcessor(task_type="REMINDER")
+        self.openai_processor = OpenAIProcessor(task_type="REMINDER", user_id=user_id)
         self.bot = bot
         self.user_id = user_id
 
@@ -25,6 +25,7 @@ class ReminderNetwork:
         current_datetime = datetime.now()
         time_message = f"Текущая дата и время: {current_datetime.isoformat()}"
         system_message = """
+        Системное сообщение:
         Ты помощник, который создает напоминания. 
         Всегда отвечай ТОЛЬКО в JSON формате с полями:
         {
@@ -35,6 +36,7 @@ class ReminderNetwork:
         Примеры:
         1. Напомнить купить хлеб -> {"text": "Купить хлеб", "time": "2025-02-27T18:00:00", "type": "one-time"}
         2. Ежедневная зарядка -> {"text": "Зарядка", "time": "2025-02-27T07:00:00", "type": "constant"}
+        Запрос пользователя:
         """
         
         try:
@@ -44,7 +46,8 @@ class ReminderNetwork:
             # Получаем ответ от OpenAI
             response = self.openai_processor.process_with_retry(
                 prompt=full_prompt,
-                temperature=0.2
+                temperature=0.2,
+                use_context=True
             )
             
             # Логируем полный ответ
