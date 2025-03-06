@@ -10,10 +10,10 @@ from aiogram.filters import Command
 from aiogram.types import BufferedInputFile
 
 import aiofiles
-
 from src.neural_networks.router_network import OutputType
 from src.neural_networks.guide_network import GuideNetwork
 from src.neural_networks.dialog_manager import DialogManager
+from src.neural_networks.openai_processor import OpenAIProcessor
 from src.utils.user_preferences import UserPreferences
 from src.audio_processing.speech_recognition import AudioTranscriber
 from src.audio_processing.voice_synthesis import VoiceSynthesizer
@@ -97,7 +97,7 @@ class TelegramAssistantBot:
         except Exception as e:
             self.logger.error(f"Ошибка сохранения напоминаний: {e}")
 
-    async def add_reminder(self, reminder_text, reminder_time, reminder_type='one-time', user_id=None):
+    async def add_reminder(self, reminder_text, reminder_time, reminder_type='one-time', chat_id=None):
         try:
             self.logger.info(f"Добавление напоминания: {reminder_text}, время: {reminder_time}, тип: {reminder_type}")
             
@@ -106,7 +106,7 @@ class TelegramAssistantBot:
                 'text': reminder_text,
                 'time': reminder_time.isoformat(),
                 'type': reminder_type,
-                'user_id': user_id
+                'chat_id': chat_id
             }
             
             self.reminders.append(reminder)
@@ -129,9 +129,9 @@ class TelegramAssistantBot:
             message_text = f"Напоминание: {reminder['text']}"
 
             # Отправка сообщения пользователю
-            user_id = reminder['user_id']  # Получаем ID пользователя
+            chat_id = reminder['chat_id']  # Получаем ID пользователя
             try:
-                await self.bot.send_message(user_id, message_text)
+                await self.bot.send_message(chat_id, message_text)
             except Exception as send_error:
                 self.logger.error(f"Ошибка отправки напоминания: {send_error}")
             
@@ -145,7 +145,7 @@ class TelegramAssistantBot:
                     reminder['text'], 
                     new_reminder_time, 
                     'constant', 
-                    user_id
+                    chat_id=chat_id
                 )   
         except Exception as e:
             self.logger.error(f"Ошибка в wait_and_notify: {e}")
@@ -179,13 +179,13 @@ class TelegramAssistantBot:
                 self.logger.error(f"Ошибка в мониторинге напоминаний: {e}")
                 await asyncio.sleep(60)
 
-    async def _process_message(self, text: str, user_id: int):
+    async def _process_message(self, text: str, chat_id: int):
         """Обработка сообщения с учетом выбранной модели и автоматическим переключением"""
-        guide_network = GuideNetwork(bot=self.bot, user_id=user_id)
+        guide_network = GuideNetwork(bot=self.bot, chat_id=chat_id)
         response, output_type = await guide_network.process_message(text)
         if isinstance(response, list):
             if response[0] == "Запуск":
-                await self.add_reminder(response[1], response[2], response[3], user_id=user_id)
+                await self.add_reminder(response[1], response[2], response[3], chat_id=chat_id)
                 response = f"Установлено напоминание {response[1]} на {response[2]}"
         
         return response, output_type
@@ -206,15 +206,13 @@ class TelegramAssistantBot:
             )
             
             await message.answer(welcome_text)
-
-        @self.dp.message()
-        async def handle_message(message: types.Message):
-            """Универсальный обработчик сообщений"""
+        
+        async def req(message: types.Message):
             response = "Произошла ошибка при обработке вашего запроса."
             if message.content_type == types.ContentType.TEXT:
                 try:
                     # Генерация текстового ответа
-                    response, output_type = await self._process_message(message.text, message.from_user.id)
+                    response, output_type = await self._process_message(message.text, message.chat.id)
                     
                     if output_type == OutputType.TEXT:  
                         if response:
@@ -260,6 +258,22 @@ class TelegramAssistantBot:
             elif message.content_type == types.ContentType.VOICE:
                 await handle_voice_message(message)
 
+        @self.dp.message()
+        async def handle_message(message: types.Message):
+            """Универсальный обработчик сообщений"""
+            if message.chat.type == "private":
+                self.logger.info("Сообщение в личном чате")
+                await req(message=message)
+            elif message.chat.type == "group" or message.chat.type == "supergroup":
+                self.logger.info("Сообщение в группе")
+                self.logger.info(f"Сообщение: {message.text.split()[0]}")
+                try:
+                    if message.text.split()[0] in ["Бот", "бот", "Бот,", "бот,"] or message.reply_to_message.from_user.id == self.bot.id: 
+                        await req(message=message)
+                except AttributeError:
+                    openai_processor = OpenAIProcessor(chat_id=message.chat.id)
+                    openai_processor.silent(message=message.text, chat_id=message.chat.id)
+
         @self.dp.message(lambda message: message.content_type == types.ContentType.VOICE)
         async def handle_voice_message(message: types.Message):
             """Обработчик голосовых сообщений"""
@@ -278,7 +292,7 @@ class TelegramAssistantBot:
                 if transcribed_text:
                     self.dialog_manager.add_message(transcribed_text, role='user_voice')
                     # Генерация ответа на основе транскрибированного текста
-                    response, output_type = await self._process_message(transcribed_text, message.from_user.id)
+                    response, output_type = await self._process_message(transcribed_text, message.chat.id)
                     
                     if output_type == OutputType.TEXT:  
                         if response:

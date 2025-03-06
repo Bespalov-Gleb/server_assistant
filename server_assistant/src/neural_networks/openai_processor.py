@@ -9,14 +9,14 @@ from .dialog_manager import DialogManager  # Added import for DialogManager
 load_dotenv()
 
 class OpenAIProcessor(LLMProcessor):
-    def __init__(self, task_type: str = None, user_id: int = 0):
+    def __init__(self, task_type: str = None, chat_id: int = 0):
         self.logger = logging.getLogger(__name__)
         api_key = os.getenv('OPENAI_API_KEY')
         
         if not api_key:
             self.logger.error("OpenAI API ключ не найден!")
             raise ValueError("Необходимо установить OPENAI_API_KEY в .env файле")
-        self.user_id = user_id
+        self.chat_id = chat_id
         
         self.client = OpenAI(api_key=api_key)
         self.task_type = task_type
@@ -31,7 +31,7 @@ class OpenAIProcessor(LLMProcessor):
         use_context = False,
         context_file =  None,
     ) -> Optional[str]:
-        dialog_manager = DialogManager(context_file=os.path.join('temp', f'dialogue_context_{self.user_id}.json'))  # Added DialogManager instance
+        dialog_manager = DialogManager(context_file=os.path.join('temp', f'dialogue_context_{self.chat_id}.json'))  # Added DialogManager instance
         if use_context == "MEM":
             try:
                 if not isinstance(context_file, list):
@@ -93,6 +93,9 @@ class OpenAIProcessor(LLMProcessor):
                 )
             assistant_response = response.choices[0].message.content
             return assistant_response
+    def silent(self, message: str, chat_id: int):
+        dialog_manager = DialogManager(context_file=os.path.join('temp', f'dialogue_context_{chat_id}.json'))
+        dialog_manager.add_message(message, role='user')
 
     def get_model_info(self) -> Dict[str, Any]:
         """

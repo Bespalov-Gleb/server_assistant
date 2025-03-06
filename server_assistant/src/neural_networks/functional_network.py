@@ -4,13 +4,13 @@ from .openai_processor import OpenAIProcessor
 from ..utils.user_preferences import UserPreferences
 
 class FunctionalNetwork:
-    def __init__(self, user_id: int):
+    def __init__(self, chat_id: int):
         self.logger = logging.getLogger(__name__)
         self.user_preferences = UserPreferences()
-        selected_model = self.user_preferences.get_llm_model(user_id=user_id)
+        selected_model = self.user_preferences.get_llm_model(chat_id=chat_id)
 
             
-        self.openai_processor = OpenAIProcessor(task_type="FUNCTIONAL", user_id=user_id)
+        self.openai_processor = OpenAIProcessor(chat_id=chat_id)
 
     def generate_response(self, message):
         system_message = """

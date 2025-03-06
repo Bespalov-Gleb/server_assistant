@@ -24,23 +24,23 @@ class UserPreferences:
         except IOError:
             print(f"Не удалось сохранить настройки в {self.preferences_file}")
 
-    def set_llm_model(self, user_id: int, model: str):
+    def set_llm_model(self, chat_id: int, model: str):
         """Установка модели для пользователя"""
-        user_id_str = str(user_id)
-        if user_id_str not in self.preferences:
-            self.preferences[user_id_str] = {}
+        chat_id_str = str(chat_id)
+        if chat_id_str not in self.preferences:
+            self.preferences[chat_id_str] = {}
         
         # Гарантируем, что значение - словарь
-        if not isinstance(self.preferences[user_id_str], dict):
-            self.preferences[user_id_str] = {}
+        if not isinstance(self.preferences[chat_id_str], dict):
+            self.preferences[chat_id_str] = {}
         
-        self.preferences[user_id_str]['model'] = model
+        self.preferences[chat_id_str]['model'] = model
         self._save_preferences()
 
-    def get_llm_model(self, user_id: int, default: str = 'deepseek'):
+    def get_llm_model(self, chat_id: int, default: str = 'deepseek'):
         """Получение модели для пользователя"""
-        user_id_str = str(user_id)
-        user_prefs = self.preferences.get(user_id_str, {})
+        chat_id_str = str(chat_id)
+        user_prefs = self.preferences.get(chat_id_str, {})
         
         # Если user_prefs не словарь, возвращаем дефолтное значение
         if not isinstance(user_prefs, dict):

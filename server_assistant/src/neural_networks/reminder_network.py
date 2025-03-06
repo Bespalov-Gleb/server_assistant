@@ -9,14 +9,14 @@ from .deepseek_processor import DeepSeekProcessor
 from .openai_processor import OpenAIProcessor
 
 class ReminderNetwork:
-    def __init__(self, bot, user_id):
+    def __init__(self, bot, chat_id):
         self.logger = logging.getLogger(__name__)
         self.user_preferences = UserPreferences()
-        selected_model = self.user_preferences.get_llm_model(user_id=user_id)
+        selected_model = self.user_preferences.get_llm_model(chat_id=chat_id)
         
-        self.openai_processor = OpenAIProcessor(task_type="REMINDER", user_id=user_id)
+        self.openai_processor = OpenAIProcessor(task_type="REMINDER", chat_id=chat_id)
         self.bot = bot
-        self.user_id = user_id
+        self.chat_id = chat_id
 
     def generate_response(self, message: str):
         """

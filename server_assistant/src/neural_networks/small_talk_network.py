@@ -4,13 +4,13 @@ from .openai_processor import OpenAIProcessor
 from ..utils.user_preferences import UserPreferences
 
 class SmallTalkNetwork:
-    def __init__(self, user_id):
+    def __init__(self, chat_id):
         self.logger = logging.getLogger(__name__)
         self.user_preferences = UserPreferences()
-        self.openai_processor = OpenAIProcessor(task_type="SMALL_TALK", user_id=user_id)
+        self.openai_processor = OpenAIProcessor(chat_id=chat_id)
     
 
-    def generate_response(self, message, use_context: bool = True):
+    def generate_response(self, message):
         system_message = """
         Системное сообщение:
         Ты дружелюбный ассистент.
@@ -35,7 +35,7 @@ class SmallTalkNetwork:
             prompt=system_message + '\n' + message, 
             max_tokens=2000, 
             temperature=0.7,
-            use_context=use_context
+            use_context=True
         )
 
         return response or "Извините, не могу сформулировать ответ."

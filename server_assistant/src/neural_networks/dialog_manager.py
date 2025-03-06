@@ -26,6 +26,7 @@ class DialogManager:
         self.context_file = context_file
         # Создаем директорию, если не существует
         os.makedirs(os.path.dirname(self.context_file), exist_ok=True)
+
         
         self.context = {
             'messages': [],
@@ -42,14 +43,17 @@ class DialogManager:
             if os.path.exists(self.context_file):
                 with open(self.context_file, 'r', encoding='utf-8') as f:
                     loaded_context = json.load(f)
+                    self.logger.info(f"Загружен контекст")
                     
                     # Проверка и восстановление структуры контекста
                     if isinstance(loaded_context, list):
                         # Если контекст - список, преобразуем его
                         self.context['messages'] = loaded_context
                         self.context['task_types'] = {}
+                        self.logger.info(f"Контекст список")
                     elif isinstance(loaded_context, dict):
                         # Если контекст - словарь, используем его как есть
+                        self.logger.info(f"Контекст словарь")
                         self.context = loaded_context
                     else:
                         # Если структура неизвестна, сбрасываем к дефолту
@@ -71,6 +75,7 @@ class DialogManager:
         try:
             with open(self.context_file, 'w', encoding='utf-8') as f:
                 json.dump(self.context, f, ensure_ascii=False, indent=2)
+                self.logger.info("Функция save_context завершена")
         except Exception as e:
             self.logger.error(f"Ошибка сохранения контекста: {e}")
 
@@ -88,8 +93,8 @@ class DialogManager:
             }
 
             # Добавляем в общий список сообщений
-            self.context['messages'].append(message_entry)
-
+            self.context['messages'].append(message_entry)            
+            self.logger.info(f"Добавлено сообщение: {message_entry}")
             # Добавляем в список сообщений по типу задачи
             if task_type:
                 if task_type not in self.context['task_types']:
@@ -104,10 +109,13 @@ class DialogManager:
                 for task_type in list(self.context['task_types'].keys()):
                     if len(self.context['task_types'][task_type]) > self.max_context_length:
                         self.context['task_types'][task_type] = self.context['task_types'][task_type][-self.max_context_length:]
-
+            
+            #if len(all_mes) > 140:
+            #    all_mes.pop(0)
             # Сохраняем контекст
+            self.logger.info(f"Сохранение контекста")
             self.save_context()
-
+            self.logger.info("Сохранение контекста завершено")
             self.logger.info(f"Добавлено сообщение. Роль: {role}, Тип задачи: {task_type}")
             self.logger.info(f"Общее количество сообщений: {len(self.context['messages'])}")
         

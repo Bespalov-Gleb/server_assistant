@@ -10,16 +10,16 @@ from .functional_network import FunctionalNetwork
 from .memory_network import MemoryNetwork
 
 class GuideNetwork:
-    def __init__(self, bot, user_id):
+    def __init__(self, bot, chat_id):
         self.logger = logging.getLogger(__name__)        
         # Инициализация сетей
-        self.functional_network = FunctionalNetwork(user_id=user_id)
-        self.router_network = RouterNetwork(user_id=user_id)
-        self.small_talk_network = SmallTalkNetwork(user_id=user_id)
-        self.complex_dialog_network = ComplexDialogNetwork(user_id=user_id)
-        self.information_network = InformationNetwork(user_id=user_id)
-        self.reminder_network = ReminderNetwork(bot=bot, user_id=user_id)
-        self.memory_network = MemoryNetwork(user_id=user_id)
+        self.functional_network = FunctionalNetwork(chat_id=chat_id)
+        self.router_network = RouterNetwork(chat_id=chat_id)
+        self.small_talk_network = SmallTalkNetwork(chat_id=chat_id)
+        self.complex_dialog_network = ComplexDialogNetwork(chat_id=chat_id)
+        self.information_network = InformationNetwork(chat_id=chat_id)
+        self.reminder_network = ReminderNetwork(bot=bot, chat_id=chat_id)
+        self.memory_network = MemoryNetwork(chat_id=chat_id)
 
     async def _route_to_network(self, task_type: TaskType, message: str) -> str:
         """
@@ -45,14 +45,13 @@ class GuideNetwork:
             elif task_type == TaskType.DELETE_MEMORY:
                 return await self.memory_network.delete_memory(message)
             elif task_type == TaskType.DELETE_ALL_MEMORIES:
-                return self.memory_network.delete_all_memories()
+                return self.memory_network.delete_all()
             elif task_type == TaskType.CHANGE_MEMORY:
                 return await self.memory_network.change_memory(message)
             elif task_type == TaskType.VIEW_MEMORIES:
                 return self.memory_network.get_all_notes()
-            else:
-                # Fallback для функциональных задач
-                return "Извините, я не могу обработать это сообщение."
+            # Fallback для функциональных задач
+            return "Извините, я не могу обработать это сообщение."
         
         except Exception as e:
             self.logger.error(f"Ошибка при маршрутизации: {e}")
@@ -69,4 +68,5 @@ class GuideNetwork:
         
         # Выбор и генерация ответа
         response = await self._route_to_network(task_type, message)
+        self.logger.info(f"Получено от нейросети: {response}")
         return response, output_type
