@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 class TelegramAssistantBot:
     def __init__(self, token):
         # Загрузка токена бота
-        self.token = os.getenv('TELEGRAM_BOT_TOKEN')
+        self.token = token
         if not self.token:
             raise ValueError("Telegram Bot Token не найден в переменных окружения")
         
