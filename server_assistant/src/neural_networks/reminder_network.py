@@ -2,7 +2,8 @@ import json
 import logging
 import re
 import traceback
-from datetime import datetime
+import asyncio
+from aiogram import types
 
 from src.neural_networks.openai_processor import OpenAIProcessor
 from src.utils.user_preferences import UserPreferences
@@ -14,20 +15,20 @@ class ReminderNetwork:
     Создает и управляет напоминаниями пользователя.
     """
 
-    def __init__(self, bot, user_id):
+    def __init__(self, bot, chat_id):
         """
         :param bot: Экземпляр бота для отправки напоминаний
-        :param user_id: ID пользователя
+        :param chat_id: ID чата
         """
         self.logger = logging.getLogger(__name__)
         self.user_preferences = UserPreferences()
-        selected_model = self.user_preferences.get_llm_model(user_id=user_id)
+        selected_model = self.user_preferences.get_llm_model(chat_id=chat_id)
         
-        self.openai_processor = OpenAIProcessor(task_type="REMINDER", user_id=user_id)
+        self.openai_processor = OpenAIProcessor(task_type="REMINDER", chat_id=chat_id)
         self.bot = bot
-        self.user_id = user_id
+        self.chat_id = chat_id
 
-    def generate_response(self, message: str):
+    def generate_response(self, message: types.Message, transcribe=None):
         """
         Генерирует структурированный ответ с деталями напоминания.
 
@@ -53,8 +54,10 @@ class ReminderNetwork:
         
         try:
             # Добавляем контекст сообщения в системное сообщение
-            full_prompt = system_message + '\n' + time_message + '\n' + 'Запрос пользователя: ' + message
-            
+            if transcribe == None:
+                full_prompt = system_message + '\n' + time_message + '\n' + f'Запрос пользователя {message.from_user.username}: ' + message.text
+            else:
+                full_prompt = system_message + '\n' + time_message + '\n' + f'Запрос пользователя {message.from_user.username}: ' + transcribe
             # Получаем ответ от OpenAI
             response = self.openai_processor.process_with_retry(
                 prompt=full_prompt,
@@ -109,7 +112,7 @@ class ReminderNetwork:
             self.logger.error(f"Проблемный ответ: {response}")
             return None
 
-    async def create_reminder(self, message: str):
+    async def create_reminder(self, message: str, transcribe=None):
         """
         Создает новое напоминание из сообщения пользователя.
 
@@ -118,7 +121,10 @@ class ReminderNetwork:
         """
         try:
             # Получаем детали напоминания
-            reminder_details = self.generate_response(message)
+            if transcribe == None:
+                reminder_details = self.generate_response(message)
+            else:
+                reminder_details = self.generate_response(message, transcribe)
             
             if reminder_details:
                 reminder_text, reminder_time, reminder_type = reminder_details

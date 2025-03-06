@@ -1,4 +1,5 @@
 import logging
+from aiogram import types
 
 from src.neural_networks.openai_processor import OpenAIProcessor
 from src.utils.user_preferences import UserPreferences
@@ -12,20 +13,21 @@ class ComplexDialogNetwork:
     и поддержкой длительных диалоговых сессий.
     """
 
-    def __init__(self, user_id):
+    def __init__(self, chat_id):
         """
         Инициализация обработчика диалогов
 
-        :param user_id: Идентификатор пользователя для персонализации
+        :param user_id: Идентификатор чата для персонализации
         :type user_id: str
         """
+
         self.logger = logging.getLogger(__name__)
         self.user_preferences = UserPreferences()
-        selected_model = self.user_preferences.get_llm_model(user_id=user_id)
+        selected_model = self.user_preferences.get_llm_model(chat_id=chat_id)
         
-        self.openai_processor = OpenAIProcessor(task_type="COMPLEX_DIALOG", user_id=user_id)
+        self.openai_processor = OpenAIProcessor(chat_id=chat_id)
 
-    def generate_response(self, message, use_context: bool = True):
+    def generate_response(self, message, transcribe=None):
         """
         Генерация ответа на сообщение пользователя с учетом контекста
 
@@ -63,9 +65,12 @@ class ComplexDialogNetwork:
         Старайся общаться как человек. Говори так, чтобы у пользователя не возникало мысли, что он говорит с нейросетью.
         Запрос пользователя:
         """
-
+        if transcribe == None:
+            text = message.from_user.username + ': ' + message.text
+        else:
+            text = message.from_user.username + ': ' + transcribe
         response = self.openai_processor.process_with_retry(
-            prompt=system_message + '\n' + message, 
+            prompt=system_message + '\n' + text, 
             system_message=system_message,
             max_tokens=2000, 
             temperature=0.6,

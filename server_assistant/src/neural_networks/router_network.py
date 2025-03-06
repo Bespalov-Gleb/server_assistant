@@ -31,15 +31,15 @@ class RouterNetwork:
     Используется внутри GuideNetwork для классификации запросов.
     """
 
-    def __init__(self, user_id):
+    def __init__(self, chat_id):
         """
-        :param user_id: ID пользователя для персонализации настроек
+        :param chat_id: ID чата для персонализации настроек
         """
+       
         self.logger = logging.getLogger(__name__)
         self.user_preferences = UserPreferences()
-        selected_model = self.user_preferences.get_llm_model(user_id=user_id)
         
-        self.openai_processor = OpenAIProcessor(user_id=user_id)
+        self.openai_processor = OpenAIProcessor(chat_id=chat_id)
     
     def detect_output_type(self, message: str) -> OutputType:
         """

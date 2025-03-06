@@ -2,6 +2,8 @@ import os
 import logging
 from openai import OpenAI
 from typing import Dict, Any, Optional
+from aiogram import types
+
 from src.neural_networks.llm_processor import LLMProcessor
 from src.neural_networks.dialog_manager import DialogManager
 
@@ -13,20 +15,19 @@ class OpenAIProcessor(LLMProcessor):
     Управляет взаимодействием с моделями OpenAI.
     """
 
-    def __init__(self, task_type: str = None, user_id: int = 0):
+    def __init__(self, task_type: str = None, chat_id: int = 0):
         """
         :param task_type: Тип задачи для контекстуализации запросов
         :param user_id: ID пользователя для управления контекстом
         """
         openai_config = get_config().neural_networks.openai
-
         self.logger = logging.getLogger(__name__)
         api_key = openai_config.api_key
         
         if not api_key:
             self.logger.error("OpenAI API ключ не найден!")
             raise ValueError("Необходимо установить OPENAI_API_KEY в .env файле")
-        self.user_id = user_id
+        self.chat_id = chat_id
         
         self.client = OpenAI(api_key=api_key)
         self.task_type = task_type
@@ -41,6 +42,7 @@ class OpenAIProcessor(LLMProcessor):
         use_context = False,
         context_file =  None,
     ) -> Optional[str]:
+
         """
         Обрабатывает запрос к API с поддержкой контекста и повторных попыток.
 
@@ -53,7 +55,9 @@ class OpenAIProcessor(LLMProcessor):
         :param context_file: Путь к файлу контекста
         :return: Сгенерированный ответ или None при ошибке
         """
-        dialog_manager = DialogManager(context_file=os.path.join('temp', f'dialogue_context_{self.user_id}.json'))  # Added DialogManager instance
+     
+        dialog_manager = DialogManager(context_file=os.path.join('temp', f'dialogue_context_{self.chat_id}.json'))  # Added DialogManager instance
+      
         if use_context == "MEM":
             try:
                 if not isinstance(context_file, list):
@@ -115,6 +119,17 @@ class OpenAIProcessor(LLMProcessor):
                 )
             assistant_response = response.choices[0].message.content
             return assistant_response
+    def silent(self, message, chat_id: int):
+        try:
+            self.logger.info("Пробуем функцию isinstance")
+            if isinstance(message, str):
+                text = message
+            else:
+                text = f"{message.from_user.username}: {message.text}"
+        except Exception as e:
+            text = message.from_user.username + ': ' + message.text
+        dialog_manager = DialogManager(context_file=os.path.join('temp', f'dialogue_context_{chat_id}.json'))
+        dialog_manager.add_message(text, role='user')
 
     def get_model_info(self) -> Dict[str, Any]:
         """

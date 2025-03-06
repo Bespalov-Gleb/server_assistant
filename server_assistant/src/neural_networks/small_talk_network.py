@@ -1,4 +1,5 @@
 import logging
+from aiogram import types
 
 from src.neural_networks.openai_processor import OpenAIProcessor
 from src.utils.user_preferences import UserPreferences
@@ -10,16 +11,18 @@ class SmallTalkNetwork:
     Использует OpenAI для генерации контекстных ответов.
     """
 
-    def __init__(self, user_id):
+    def __init__(self, chat_id):
         """
-        :param user_id: ID пользователя для идентификации контекста
+        :param chat_id: ID чата для идентификации контекста
         """
+
         self.logger = logging.getLogger(__name__)
         self.user_preferences = UserPreferences()
-        self.openai_processor = OpenAIProcessor(task_type="SMALL_TALK", user_id=user_id)
+        self.openai_processor = OpenAIProcessor(chat_id=chat_id)
     
 
-    def generate_response(self, message, use_context: bool = True):
+
+    def generate_response(self, message, transcribe=None):
         """
         Генерирует ответ на сообщение пользователя с учетом контекста беседы.
 
@@ -27,6 +30,7 @@ class SmallTalkNetwork:
         :param use_context: Флаг использования контекста беседы
         :return: Сгенерированный ответ или сообщение об ошибке
         """
+
         system_message = """
         Системное сообщение:
         Ты дружелюбный ассистент.
@@ -46,12 +50,16 @@ class SmallTalkNetwork:
         Старайся общаться как человек. Говори так, чтобы у пользователя не возникало мысли, что он говорит с нейросетью.
         Запрос пользователя:
         """
+        if transcribe == None:
+            text = message.from_user.username + ': ' + message.text
+        else:
+            text = message.from_user.username + ': ' + transcribe
 
         response = self.openai_processor.process_with_retry(
-            prompt=system_message + '\n' + message, 
+            prompt=system_message + '\n' + text, 
             max_tokens=2000, 
             temperature=0.7,
-            use_context=use_context
+            use_context=True
         )
 
         return response or "Извините, не могу сформулировать ответ."
