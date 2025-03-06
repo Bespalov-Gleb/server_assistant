@@ -1,11 +1,9 @@
 import logging
 from enum import Enum, auto
-from dotenv import load_dotenv
 from src.utils.user_preferences import UserPreferences
 from src.neural_networks.deepseek_processor import DeepSeekProcessor
 from src.neural_networks.openai_processor import OpenAIProcessor
 
-load_dotenv()
 
 class TaskType(Enum):
     SMALL_TALK = auto()

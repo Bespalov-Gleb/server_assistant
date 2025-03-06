@@ -5,12 +5,16 @@ from dotenv import load_dotenv
 import requests
 import soundfile as sf
 
+from config import get_config
+
 load_dotenv()
 
 class YandexSpeechConverter:
     def __init__(self):
-        self.oauth_token = os.getenv('OAUTH')
-        self.folder_id = os.getenv('YANDEX_FOLDER_ID', 'b1g3k9jqrid8********')
+        yandex_config = get_config().neural_networks.yspeechkit # config
+
+        self.oauth_token = yandex_config.oauth_token
+        self.folder_id = yandex_config.oauth_token
         self.logger = logging.getLogger(__name__)
         
         # Настройки голоса

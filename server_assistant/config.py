@@ -42,6 +42,8 @@ class Config:
 
 
 def get_config():
+    load_dotenv()
+
     return Config(
         telegram=Telegram(
             token=getenv('TELEGRAM_BOT_TOKEN')

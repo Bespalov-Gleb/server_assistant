@@ -1,17 +1,18 @@
-import os
 import logging
-from dotenv import load_dotenv
 from openai import OpenAI
 from typing import Dict, Any, Optional
 from src.neural_networks.llm_processor import LLMProcessor
 from src.neural_networks.dialog_manager import dialog_manager
 
-load_dotenv()
+from config import get_config
+
 
 class DeepSeekProcessor(LLMProcessor):
     def __init__(self, task_type: str = None):
+        deepseek_config = get_config().neural_networks.deepseek
+
         self.logger = logging.getLogger(__name__)
-        api_key = os.getenv('DEEPSEEK_API_KEY')
+        api_key = deepseek_config.api_key
         
         if not api_key:
             self.logger.error("Deepseek API ключ не найден!")

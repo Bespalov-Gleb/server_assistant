@@ -4,7 +4,6 @@ import asyncio
 import json
 from datetime import datetime, timedelta
 
-from dotenv import load_dotenv
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
 from aiogram.types import BufferedInputFile
@@ -26,17 +25,15 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Загрузка переменных окружения
-load_dotenv()
 
 class TelegramAssistantBot:
-    def __init__(self):
+    def __init__(self, token):
         # Загрузка токена бота
         self.token = os.getenv('TELEGRAM_BOT_TOKEN')
         if not self.token:
             raise ValueError("Telegram Bot Token не найден в переменных окружения")
         
-        self.bot = Bot(token=self.token)
+        self.bot = Bot(token=token)
         self.dp = Dispatcher()
         self.logger = logger
         

@@ -3,7 +3,6 @@ import time
 import logging
 import whisper
 import subprocess
-from dotenv import load_dotenv
 import soundfile as sf
 import librosa
 import numpy as np
@@ -41,7 +40,6 @@ FFMPEG_PATH = find_ffmpeg_path()
 
 class AudioTranscriber:
     def __init__(self, language: str = 'ru'):
-        load_dotenv()
         self.logger = logging.getLogger(__name__)
         
         # Логируем путь к FFmpeg

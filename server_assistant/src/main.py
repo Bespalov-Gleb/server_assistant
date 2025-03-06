@@ -1,5 +1,3 @@
-import os
-from dotenv import load_dotenv
 from src.logging_config import setup_logging
 import sys
 import asyncio
@@ -7,23 +5,25 @@ import asyncio
 
 from src.telegram_bot.bot import TelegramAssistantBot
 
+from config import get_config
+
 # Настройка логирования
 setup_logging()
 
 # Загрузка переменных окружения
-load_dotenv()
 
 
 async def main():
     # Получаем токен из переменных окружения
-    bot_token = os.getenv('TELEGRAM_BOT_TOKEN')
+    telegram_config = get_config().telegram
+    bot_token = telegram_config.token
 
     # Проверяем наличие токена
     if not bot_token:
         raise ValueError("Telegram Bot Token не найден. Установите переменную окружения TELEGRAM_BOT_TOKEN")
 
     # Создаем и запускаем бота
-    bot = TelegramAssistantBot()
+    bot = TelegramAssistantBot(bot_token)
 
     try:
         await bot.start()

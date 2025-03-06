@@ -2,7 +2,6 @@ import os
 import torch
 import logging
 import soundfile as sf
-from dotenv import load_dotenv
 import torchaudio
 import numpy as np
 import subprocess
@@ -14,7 +13,6 @@ class VoiceSynthesizer:
         
         :param language: Язык синтеза
         """
-        load_dotenv()
         self.logger = logging.getLogger(__name__)
         self.language = language
         

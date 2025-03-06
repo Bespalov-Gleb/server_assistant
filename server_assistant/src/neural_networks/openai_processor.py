@@ -1,17 +1,18 @@
 import os
 import logging
-from dotenv import load_dotenv
 from openai import OpenAI
 from typing import Dict, Any, Optional
 from src.neural_networks.llm_processor import LLMProcessor
 from src.neural_networks.dialog_manager import DialogManager
 
-load_dotenv()
+from config import get_config
 
 class OpenAIProcessor(LLMProcessor):
     def __init__(self, task_type: str = None, user_id: int = 0):
+        openai_config = get_config().neural_networks.openai
+
         self.logger = logging.getLogger(__name__)
-        api_key = os.getenv('OPENAI_API_KEY')
+        api_key = openai_config.api_key
         
         if not api_key:
             self.logger.error("OpenAI API ключ не найден!")
