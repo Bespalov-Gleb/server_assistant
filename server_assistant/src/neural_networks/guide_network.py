@@ -1,5 +1,6 @@
 import logging
 import asyncio
+from aiogram import types
 from enum import Enum
 from .router_network import RouterNetwork, TaskType
 from .small_talk_network import SmallTalkNetwork
@@ -21,33 +22,33 @@ class GuideNetwork:
         self.reminder_network = ReminderNetwork(bot=bot, chat_id=chat_id)
         self.memory_network = MemoryNetwork(chat_id=chat_id)
 
-    async def _route_to_network(self, task_type: TaskType, message: str) -> str:
+    async def _route_to_network(self, task_type: TaskType, message: types.Message, transcribe=None) -> str:
         """
         Маршрутизация сообщения в соответствующую нейронную сеть
         """
         try:
             if task_type == TaskType.SMALL_TALK:
-                return self.small_talk_network.generate_response(message)
+                return self.small_talk_network.generate_response(message, transcribe=transcribe)
             elif task_type == TaskType.COMPLEX_DIALOG:
-                return self.complex_dialog_network.generate_response(message)
+                return self.complex_dialog_network.generate_response(message, transcribe=transcribe)
             elif task_type == TaskType.INFORMATION:
                 self.logger.info("Приступил к генерации информационного ответа")
-                return self.information_network.generate_response(message)
+                return self.information_network.generate_response(message, transcribe=transcribe)
             elif task_type == TaskType.FUNCTIONAL:
-                return self.functional_network.generate_response(message)
+                return self.functional_network.generate_response(message, transcribe=transcribe)
             elif task_type == TaskType.REMINDER:
-                return await self.reminder_network.create_reminder(message)
+                return await self.reminder_network.create_reminder(message, transcribe=transcribe)
             elif task_type == TaskType.RECALL_MEMORY:
-                return await self.memory_network.recall_memory(message)
+                return await self.memory_network.recall_memory(message, transcribe=transcribe)
             elif task_type == TaskType.ADD_MEMORY:
                 self.logger.info("Приступил к добавлению заметки")
-                return await self.memory_network.add_memory(message)
+                return await self.memory_network.add_memory(message, transcribe=transcribe)
             elif task_type == TaskType.DELETE_MEMORY:
-                return await self.memory_network.delete_memory(message)
+                return await self.memory_network.delete_memory(message, transcribe=transcribe)
             elif task_type == TaskType.DELETE_ALL_MEMORIES:
                 return self.memory_network.delete_all()
             elif task_type == TaskType.CHANGE_MEMORY:
-                return await self.memory_network.change_memory(message)
+                return await self.memory_network.change_memory(message, transcribe=transcribe)
             elif task_type == TaskType.VIEW_MEMORIES:
                 return self.memory_network.get_all_notes()
             # Fallback для функциональных задач
@@ -57,16 +58,20 @@ class GuideNetwork:
             self.logger.error(f"Ошибка при маршрутизации: {e}")
             return "Произошла ошибка при обработке сообщения."
 
-    async def process_message(self, message: str) -> str:
+    async def process_message(self, message: types.Message, transcribe=None) -> str:
         """
         Основной метод обработки входящего сообщения
         """
         # Определение типа задачи
-        task_type = self.router_network.detect_task_type(message)
-        output_type = self.router_network.detect_output_type(message)
+        if transcribe == None:
+            text = message.text
+        else:
+            text = transcribe
+        task_type = self.router_network.detect_task_type(text)
+        output_type = self.router_network.detect_output_type(text)
         
         
         # Выбор и генерация ответа
-        response = await self._route_to_network(task_type, message)
+        response = await self._route_to_network(task_type, message, transcribe)
         self.logger.info(f"Получено от нейросети: {response}")
         return response, output_type

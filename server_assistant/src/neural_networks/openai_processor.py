@@ -5,7 +5,7 @@ from openai import OpenAI
 from typing import Dict, Any, Optional
 from .llm_processor import LLMProcessor
 from .dialog_manager import DialogManager  # Added import for DialogManager
-
+from aiogram import types
 load_dotenv()
 
 class OpenAIProcessor(LLMProcessor):
@@ -93,9 +93,17 @@ class OpenAIProcessor(LLMProcessor):
                 )
             assistant_response = response.choices[0].message.content
             return assistant_response
-    def silent(self, message: str, chat_id: int):
+    def silent(self, message, chat_id: int):
+        try:
+            self.logger.info("Пробуем функцию isinstance")
+            if isinstance(message, str):
+                text = message
+            else:
+                text = f"{message.from_user.username}: {message.text}"
+        except Exception as e:
+            text = message.from_user.username + ': ' + message.text
         dialog_manager = DialogManager(context_file=os.path.join('temp', f'dialogue_context_{chat_id}.json'))
-        dialog_manager.add_message(message, role='user')
+        dialog_manager.add_message(text, role='user')
 
     def get_model_info(self) -> Dict[str, Any]:
         """

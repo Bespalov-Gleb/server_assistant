@@ -179,10 +179,13 @@ class TelegramAssistantBot:
                 self.logger.error(f"Ошибка в мониторинге напоминаний: {e}")
                 await asyncio.sleep(60)
 
-    async def _process_message(self, text: str, chat_id: int):
+    async def _process_message(self, message: types.Message, chat_id: int, transcribe=None):
         """Обработка сообщения с учетом выбранной модели и автоматическим переключением"""
         guide_network = GuideNetwork(bot=self.bot, chat_id=chat_id)
-        response, output_type = await guide_network.process_message(text)
+        if transcribe == None:
+            response, output_type = await guide_network.process_message(message)
+        else:
+            response, output_type = await guide_network.process_message(message, transcribe=transcribe)
         if isinstance(response, list):
             if response[0] == "Запуск":
                 await self.add_reminder(response[1], response[2], response[3], chat_id=chat_id)
@@ -212,7 +215,7 @@ class TelegramAssistantBot:
             if message.content_type == types.ContentType.TEXT:
                 try:
                     # Генерация текстового ответа
-                    response, output_type = await self._process_message(message.text, message.chat.id)
+                    response, output_type = await self._process_message(message, message.chat.id)
                     
                     if output_type == OutputType.TEXT:  
                         if response:
@@ -266,15 +269,46 @@ class TelegramAssistantBot:
                 await req(message=message)
             elif message.chat.type == "group" or message.chat.type == "supergroup":
                 self.logger.info("Сообщение в группе")
-                self.logger.info(f"Сообщение: {message.text.split()[0]}")
                 try:
-                    if message.text.split()[0] in ["Бот", "бот", "Бот,", "бот,"] or message.reply_to_message.from_user.id == self.bot.id: 
-                        await req(message=message)
+                    self.logger.info(f"Тип сообщения: {message.content_type}")
+                    if message.content_type == "text":
+                        if message.text.split()[0] in ["Бот", "бот", "Бот,", "бот,"] or message.reply_to_message.from_user.id == self.bot.id: 
+                            await req(message=message)
+                        else:
+                            openai_processor = OpenAIProcessor(chat_id=message.chat.id)
+                            openai_processor.silent(message=message, chat_id=message.chat.id)
+                    elif message.content_type == "voice":
+                        if message.reply_to_message.from_user.id == self.bot.id:
+                            await req(message=message)
+                        else:
+                            openai_processor = OpenAIProcessor(chat_id=message.chat.id)
+                            voice_file = message.voice
+                            self.logger.info('Скачивание голосового сообщения')
+                            destination = os.path.join('temp', f'voice_{message.from_user.id}_{message.message_id}.oga')
+                            await self.bot.download(voice_file.file_id, destination=destination)
+                            self.logger.info(f'Скачивание голосового сообщения завершено. Путь: {destination}')
+                            
+                            # Транскрибация аудио
+                            transcribed_text = self.audio_transcriber.transcribe_audio(destination)
+                            text = message.from_user.username + ": " + transcribed_text
+                            os.remove(destination)
+                            openai_processor.silent(message=text, chat_id=message.chat.id)
+                        
                 except AttributeError:
                     openai_processor = OpenAIProcessor(chat_id=message.chat.id)
-                    openai_processor.silent(message=message.text, chat_id=message.chat.id)
+                    voice_file = message.voice
+                    self.logger.info('Скачивание голосового сообщения')
+                    destination = os.path.join('temp', f'voice_{message.from_user.id}_{message.message_id}.oga')
+                    await self.bot.download(voice_file.file_id, destination=destination)
+                    self.logger.info(f'Скачивание голосового сообщения завершено. Путь: {destination}')
+                    
+                    # Транскрибация аудио
+                    transcribed_text = self.audio_transcriber.transcribe_audio(destination)
+                    text = message.from_user.username + ": " + transcribed_text
+                    os.remove(destination)
+                    openai_processor.silent(message=text, chat_id=message.chat.id)
 
-        @self.dp.message(lambda message: message.content_type == types.ContentType.VOICE)
+        #@self.dp.message(lambda message: message.content_type == types.ContentType.VOICE)
         async def handle_voice_message(message: types.Message):
             """Обработчик голосовых сообщений"""
             try:
@@ -292,7 +326,7 @@ class TelegramAssistantBot:
                 if transcribed_text:
                     self.dialog_manager.add_message(transcribed_text, role='user_voice')
                     # Генерация ответа на основе транскрибированного текста
-                    response, output_type = await self._process_message(transcribed_text, message.chat.id)
+                    response, output_type = await self._process_message(message, message.chat.id, transcribe=transcribed_text)
                     
                     if output_type == OutputType.TEXT:  
                         if response:

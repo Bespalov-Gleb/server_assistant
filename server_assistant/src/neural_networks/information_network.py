@@ -2,6 +2,7 @@ import logging
 from .deepseek_processor import DeepSeekProcessor  # Изменили импорт
 from .openai_processor import OpenAIProcessor
 from ..utils.user_preferences import UserPreferences
+from aiogram import types
 
 class InformationNetwork:
     def __init__(self, chat_id: int):
@@ -11,7 +12,7 @@ class InformationNetwork:
         
         self.openai_processor = OpenAIProcessor(chat_id=chat_id)
 
-    def generate_response(self, message):
+    def generate_response(self, message, transcribe=None):
         system_message = """
         Системное сообщение:
         Твой владелец - Владимир. Твой создатель - Глеб. 
@@ -39,9 +40,13 @@ class InformationNetwork:
         Старайся общаться как человек. Говори так, чтобы у пользователя не возникало мысли, что он говорит с нейросетью.
         Запрос пользователя:
         """
-        self.logger.info(f"Отправка запроса в INFORMATION. Запрос: {system_message + message}")
+        if transcribe == None:
+            text = message.from_user.username + ': ' + message.text
+        else:
+            text = message.from_user.username + ': ' + transcribe
+        self.logger.info(f"Отправка запроса в INFORMATION. Запрос: {system_message + text}")
         response = self.openai_processor.process_with_retry(
-            prompt=system_message + '\n' + message, 
+            prompt=system_message + '\n' + text, 
             temperature=0.5,
             max_tokens=2000, 
             use_context=True
