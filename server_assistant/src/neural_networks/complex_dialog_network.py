@@ -5,7 +5,20 @@ from src.utils.user_preferences import UserPreferences
 
 
 class ComplexDialogNetwork:
+    """
+    Класс для обработки сложных диалогов с использованием OpenAI.
+    
+    Обеспечивает контекстное общение с учетом предпочтений пользователя
+    и поддержкой длительных диалоговых сессий.
+    """
+
     def __init__(self, user_id):
+        """
+        Инициализация обработчика диалогов
+
+        :param user_id: Идентификатор пользователя для персонализации
+        :type user_id: str
+        """
         self.logger = logging.getLogger(__name__)
         self.user_preferences = UserPreferences()
         selected_model = self.user_preferences.get_llm_model(user_id=user_id)
@@ -13,6 +26,16 @@ class ComplexDialogNetwork:
         self.openai_processor = OpenAIProcessor(task_type="COMPLEX_DIALOG", user_id=user_id)
 
     def generate_response(self, message, use_context: bool = True):
+        """
+        Генерация ответа на сообщение пользователя с учетом контекста
+
+        :param message: Текст сообщения от пользователя
+        :type message: str
+        :param use_context: Использовать ли контекст предыдущих сообщений
+        :type use_context: bool
+        :return: Сгенерированный ответ или сообщение об ошибке
+        :rtype: str
+        """
         system_message = """
         Системное сообщение:
         Твой владелец - Владимир. Твой создатель - Глеб. 

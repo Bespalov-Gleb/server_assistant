@@ -25,7 +25,16 @@ class OutputType(Enum):
     DEFAULT = auto()
 
 class RouterNetwork:
+    """
+    Классификатор запросов пользователя.
+    Определяет тип задачи и желаемый формат вывода.
+    Используется внутри GuideNetwork для классификации запросов.
+    """
+
     def __init__(self, user_id):
+        """
+        :param user_id: ID пользователя для персонализации настроек
+        """
         self.logger = logging.getLogger(__name__)
         self.user_preferences = UserPreferences()
         selected_model = self.user_preferences.get_llm_model(user_id=user_id)
@@ -33,6 +42,12 @@ class RouterNetwork:
         self.openai_processor = OpenAIProcessor(user_id=user_id)
     
     def detect_output_type(self, message: str) -> OutputType:
+        """
+        Определяет желаемый тип вывода на основе сообщения пользователя.
+
+        :param message: Сообщение пользователя
+        :return: Тип вывода из enum OutputType
+        """
         system_message = """
         Системное сообщение:
         Ты - профессиональный классификатор.
@@ -77,6 +92,12 @@ class RouterNetwork:
         return OutputType.TEXT
 
     def detect_task_type(self, message: str) -> TaskType:
+        """
+        Определяет тип задачи на основе сообщения пользователя.
+
+        :param message: Сообщение пользователя
+        :return: Тип задачи из enum TaskType
+        """
         system_message = """
         Системное сообщение:
         Ты - профессиональный классификатор сообщений.

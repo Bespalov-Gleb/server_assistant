@@ -26,7 +26,10 @@ class YandexSpeechConverter:
 
     def get_iam_token(self):
         """
-        Получение IAM-токена для авторизации
+        Получение IAM-токена для авторизации в Yandex Cloud.
+
+        :return: IAM-токен в случае успеха, None при ошибке
+        :rtype: str | None
         """
         try:
             response = requests.post(
@@ -40,7 +43,16 @@ class YandexSpeechConverter:
 
     def generate_audio(self, text, output_path=None, language='ru-RU'):
         """
-        Синтез речи с использованием Яндекс.Speechkit
+        Синтез речи из текста с использованием Яндекс.Speechkit.
+
+        :param text: Текст для преобразования в речь
+        :type text: str
+        :param output_path: Путь для сохранения аудио файла. Если не указан, создается временный файл
+        :type output_path: str | None
+        :param language: Язык синтеза речи
+        :type language: str
+        :return: Путь к сгенерированному аудио файлу или None при ошибке
+        :rtype: str | None
         """
         # Генерация временного пути, если не указан
         if not output_path:

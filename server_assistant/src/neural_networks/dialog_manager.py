@@ -5,6 +5,13 @@ from datetime import datetime
 
 
 class DialogManager:
+    """
+    Менеджер для управления контекстом диалога.
+    
+    Обеспечивает сохранение и загрузку истории диалога,
+    фильтрацию по типам задач и временным периодам.
+    """
+
     def __init__(
         self, 
         max_context_length: int = 100000, 
@@ -12,11 +19,14 @@ class DialogManager:
         context_file: str = 'temp/dialogue_context.json'
     ):
         """
-        Менеджер диалогового контекста
-        
+        Инициализация менеджера диалога
+
         :param max_context_length: Максимальное количество сообщений в контексте
+        :type max_context_length: int
         :param max_tokens: Максимальное количество токенов в контексте
-        :param context_file: Путь для персистентного хранения контекста
+        :type max_tokens: int
+        :param context_file: Путь для сохранения контекста
+        :type context_file: str
         """
         self.logger = logging.getLogger(__name__)
         self.max_context_length = max_context_length
@@ -36,6 +46,9 @@ class DialogManager:
     def load_context(self):
         """
         Загрузка контекста из файла
+
+        :return: Загруженный контекст или пустой контекст при ошибке
+        :rtype: dict
         """
         try:
             if os.path.exists(self.context_file):
@@ -66,6 +79,8 @@ class DialogManager:
     def save_context(self):
         """
         Сохранение контекста в файл
+        
+        :raises Exception: При ошибке сохранения
         """
         try:
             with open(self.context_file, 'w', encoding='utf-8') as f:
@@ -76,6 +91,13 @@ class DialogManager:
     def add_message(self, message, role='user', task_type=None):
         """
         Добавление сообщения в контекст
+
+        :param message: Текст сообщения
+        :type message: str
+        :param role: Роль отправителя (user/assistant)
+        :type role: str
+        :param task_type: Тип задачи для группировки сообщений
+        :type task_type: str | None
         """
         try:
             # Создаем объект сообщения
@@ -115,7 +137,16 @@ class DialogManager:
 
     def get_context(self, task_type=None, include_general=True, hours_to_include=24):
         """
-        Получение контекста с возможностью фильтрации
+        Получение отфильтрованного контекста диалога
+
+        :param task_type: Тип задачи для фильтрации
+        :type task_type: str | None
+        :param include_general: Включать ли общие сообщения
+        :type include_general: bool
+        :param hours_to_include: Временной период в часах
+        :type hours_to_include: int
+        :return: Список отфильтрованных сообщений
+        :rtype: list[dict]
         """
         try:
             # Текущее время

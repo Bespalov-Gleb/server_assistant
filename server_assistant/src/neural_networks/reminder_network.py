@@ -9,7 +9,16 @@ from src.utils.user_preferences import UserPreferences
 
 
 class ReminderNetwork:
+    """
+    Обработчик напоминаний. 
+    Создает и управляет напоминаниями пользователя.
+    """
+
     def __init__(self, bot, user_id):
+        """
+        :param bot: Экземпляр бота для отправки напоминаний
+        :param user_id: ID пользователя
+        """
         self.logger = logging.getLogger(__name__)
         self.user_preferences = UserPreferences()
         selected_model = self.user_preferences.get_llm_model(user_id=user_id)
@@ -20,7 +29,10 @@ class ReminderNetwork:
 
     def generate_response(self, message: str):
         """
-        Генерация ответа с деталями напоминания
+        Генерирует структурированный ответ с деталями напоминания.
+
+        :param message: Сообщение с запросом напоминания
+        :return: JSON-структура с деталями напоминания
         """
         current_datetime = datetime.now()
         time_message = f"Текущая дата и время: {current_datetime.isoformat()}"
@@ -63,7 +75,10 @@ class ReminderNetwork:
 
     def parse_reminder_json(self, response: str):
         """
-        Парсинг JSON с деталями напоминания
+        Извлекает данные напоминания из JSON-ответа.
+
+        :param response: JSON-строка с данными напоминания
+        :return: Кортеж (текст, время, тип) или None при ошибке
         """
         try:
             # Извлечение JSON из текста с помощью регулярного выражения
@@ -96,7 +111,10 @@ class ReminderNetwork:
 
     async def create_reminder(self, message: str):
         """
-        Обработка сообщения и создание напоминания
+        Создает новое напоминание из сообщения пользователя.
+
+        :param message: Сообщение с запросом напоминания
+        :return: Список с параметрами напоминания или сообщение об ошибке
         """
         try:
             # Получаем детали напоминания

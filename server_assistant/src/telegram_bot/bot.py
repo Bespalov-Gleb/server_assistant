@@ -27,7 +27,16 @@ logger = logging.getLogger(__name__)
 
 
 class TelegramAssistantBot:
+    """
+    Основной класс Telegram бота.
+    Обрабатывает входящие сообщения, управляет напоминаниями
+    и взаимодействует с нейросетевыми моделями.
+    """
+
     def __init__(self, token):
+        """
+        :param token: Токен Telegram бота
+        """
         # Загрузка токена бота
         self.token = token
         if not self.token:
@@ -54,7 +63,7 @@ class TelegramAssistantBot:
         asyncio.create_task(self.start_reminder_monitoring())
 
     async def initialize_reminders(self):
-        """Асинхронная инициализация напоминаний"""
+        """Инициализирует систему напоминаний из файла."""
         try:
             # Загружаем напоминания
             self.reminders = await self.load_reminders()
@@ -64,6 +73,11 @@ class TelegramAssistantBot:
             self.reminders = []
 
     async def load_reminders(self):
+        """
+        Загружает напоминания из файла.
+
+        :return: Список напоминаний
+        """
         try:
             if os.path.exists(self.reminder_file):
                 async with aiofiles.open(self.reminder_file, 'r', encoding='utf-8') as f:
@@ -86,6 +100,7 @@ class TelegramAssistantBot:
             return []
 
     async def save_reminders(self):
+        """Сохраняет текущие напоминания в файл."""
         try:
             async with aiofiles.open(self.reminder_file, 'w', encoding='utf-8') as f:
                 await f.write(json.dumps(self.reminders, ensure_ascii=False))
@@ -95,6 +110,15 @@ class TelegramAssistantBot:
             self.logger.error(f"Ошибка сохранения напоминаний: {e}")
 
     async def add_reminder(self, reminder_text, reminder_time, reminder_type='one-time', user_id=None):
+        """
+        Добавляет новое напоминание.
+
+        :param reminder_text: Текст напоминания
+        :param reminder_time: Время напоминания
+        :param reminder_type: Тип напоминания ('one-time' или 'constant')
+        :param user_id: ID пользователя
+        :return: Созданное напоминание или None при ошибке
+        """
         try:
             self.logger.info(f"Добавление напоминания: {reminder_text}, время: {reminder_time}, тип: {reminder_type}")
             
@@ -119,6 +143,11 @@ class TelegramAssistantBot:
             return None
 
     async def wait_and_notify(self, reminder):
+        """
+        Ожидает время напоминания и отправляет уведомление.
+
+        :param reminder: Словарь с данными напоминания
+        """
         try:
             reminder_time = datetime.fromisoformat(reminder['time'])
             time_to_wait = max((reminder_time - datetime.now()).total_seconds(), 0)
@@ -148,9 +177,9 @@ class TelegramAssistantBot:
             self.logger.error(f"Ошибка в wait_and_notify: {e}")
 
     async def start_reminder_monitoring(self):
+        """Запускает постоянный мониторинг напоминаний."""
         # Небольшая задержка для инициализации
         await asyncio.sleep(5)
-        """Асинхронная инициализация напоминаний"""
         while True:
             try:
                 now = datetime.now()
@@ -177,7 +206,13 @@ class TelegramAssistantBot:
                 await asyncio.sleep(60)
 
     async def _process_message(self, text: str, user_id: int):
-        """Обработка сообщения с учетом выбранной модели и автоматическим переключением"""
+        """
+        Обрабатывает входящее сообщение.
+
+        :param text: Текст сообщения
+        :param user_id: ID пользователя
+        :return: Кортеж (ответ, тип вывода)
+        """
         guide_network = GuideNetwork(bot=self.bot, user_id=user_id)
         response, output_type = await guide_network.process_message(text)
         if isinstance(response, list):
@@ -188,7 +223,7 @@ class TelegramAssistantBot:
         return response, output_type
 
     def _register_handlers(self):
-        """Регистрация обработчиков команд и сообщений"""
+        """Регистрирует обработчики команд и сообщений."""
         @self.dp.message(Command('start'))
         async def send_welcome(message: types.Message):
             """Обработчик команд /start и /help"""
@@ -325,9 +360,7 @@ class TelegramAssistantBot:
                 logger.error(f"Ошибка обработки голосового сообщения: {e}")
                 await message.reply("Не удалось обработать голосовое сообщение.")
     async def _cleanup_temp_audio_files(self):
-        """
-        Удаляет все .wav файлы из временной директории после отправки
-        """
+        """Удаляет временные аудиофайлы."""
         try:
             wav_files = glob.glob(os.path.join('temp', '*.wav'))
             for file_path in wav_files:
@@ -341,7 +374,7 @@ class TelegramAssistantBot:
 
 
     async def start(self):
-        """Запуск бота"""
+        """Запускает бота."""
         self.logger.info("Telegram бот запущен")
         await self.dp.start_polling(self.bot)
 

@@ -5,14 +5,20 @@ import soundfile as sf
 import numpy as np
 
 class MessageTypeDetector:
+    """
+    Определяет тип входящего сообщения (текст или голос).
+    Поддерживает проверку файлов и бинарных данных.
+    """
+
     def __init__(self):
+        """Инициализация детектора типов сообщений"""
         self.logger = logging.getLogger(__name__)
     
-    def detect_message_type(self, message):
+    def detect_message_type(self, message: str):
         """
-        Определение типа сообщения
-        
-        :param message: Входящее сообщение (путь к файлу или текст)
+        Определяет тип входящего сообщения.
+
+        :param message: Входящее сообщение (путь к файлу, текст или бинарные данные)
         :return: 'text' или 'voice'
         """
         # Если передан текст
@@ -39,10 +45,10 @@ class MessageTypeDetector:
     
     def _validate_audio_file(self, file_path):
         """
-        Проверка аудио-файла
-        
-        :param file_path: Путь к аудио-файлу
-        :return: 'voice' или 'text'
+        Проверяет аудиофайл на соответствие критериям голосового сообщения.
+
+        :param file_path: Путь к аудиофайлу
+        :return: 'voice' если файл соответствует критериям, иначе 'text'
         """
         try:
             # Чтение аудио-файла
@@ -67,10 +73,10 @@ class MessageTypeDetector:
     
     def _validate_audio_bytes(self, audio_bytes):
         """
-        Проверка аудио-данных в памяти
-        
+        Проверяет бинарные аудиоданные на соответствие критериям голосового сообщения.
+
         :param audio_bytes: Бинарные данные аудио
-        :return: 'voice' или 'text'
+        :return: 'voice' если данные соответствуют критериям, иначе 'text'
         """
         try:
             # Создаем временный файл

@@ -2,12 +2,24 @@ import json
 import os
 
 class UserPreferences:
+    """
+    Управляет пользовательскими настройками.
+    Сохраняет и загружает предпочтения пользователей из JSON файла.
+    """
+
     def __init__(self, preferences_file='user_preferences.json'):
+        """
+        :param preferences_file: Путь к файлу с настройками пользователей
+        """
         self.preferences_file = preferences_file
         self.preferences = self._load_preferences()
 
     def _load_preferences(self):
-        """Загрузка настроек пользователей"""
+        """
+        Загружает настройки пользователей из файла.
+
+        :return: Словарь с настройками пользователей
+        """
         if os.path.exists(self.preferences_file):
             try:
                 with open(self.preferences_file, 'r') as f:
@@ -17,7 +29,9 @@ class UserPreferences:
         return {}
 
     def _save_preferences(self):
-        """Сохранение настроек пользователей"""
+        """
+        Сохраняет текущие настройки пользователей в файл.
+        """
         try:
             with open(self.preferences_file, 'w') as f:
                 json.dump(self.preferences, f, indent=4)
@@ -25,7 +39,12 @@ class UserPreferences:
             print(f"Не удалось сохранить настройки в {self.preferences_file}")
 
     def set_llm_model(self, user_id: int, model: str):
-        """Установка модели для пользователя"""
+        """
+        Устанавливает предпочитаемую модель для пользователя.
+
+        :param user_id: ID пользователя
+        :param model: Название модели
+        """
         user_id_str = str(user_id)
         if user_id_str not in self.preferences:
             self.preferences[user_id_str] = {}
@@ -38,7 +57,13 @@ class UserPreferences:
         self._save_preferences()
 
     def get_llm_model(self, user_id: int, default: str = 'deepseek'):
-        """Получение модели для пользователя"""
+        """
+        Возвращает предпочитаемую модель пользователя.
+
+        :param user_id: ID пользователя
+        :param default: Модель по умолчанию
+        :return: Название модели
+        """
         user_id_str = str(user_id)
         user_prefs = self.preferences.get(user_id_str, {})
         
@@ -48,4 +73,3 @@ class UserPreferences:
         
         return user_prefs.get('model', default)
 
-    

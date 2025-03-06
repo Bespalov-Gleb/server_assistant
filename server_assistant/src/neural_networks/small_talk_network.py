@@ -5,13 +5,28 @@ from src.utils.user_preferences import UserPreferences
 
 
 class SmallTalkNetwork:
+    """
+    Класс для обработки повседневного общения с пользователем.
+    Использует OpenAI для генерации контекстных ответов.
+    """
+
     def __init__(self, user_id):
+        """
+        :param user_id: ID пользователя для идентификации контекста
+        """
         self.logger = logging.getLogger(__name__)
         self.user_preferences = UserPreferences()
         self.openai_processor = OpenAIProcessor(task_type="SMALL_TALK", user_id=user_id)
     
 
     def generate_response(self, message, use_context: bool = True):
+        """
+        Генерирует ответ на сообщение пользователя с учетом контекста беседы.
+
+        :param message: Сообщение пользователя
+        :param use_context: Флаг использования контекста беседы
+        :return: Сгенерированный ответ или сообщение об ошибке
+        """
         system_message = """
         Системное сообщение:
         Ты дружелюбный ассистент.

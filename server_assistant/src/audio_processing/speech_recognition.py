@@ -9,6 +9,9 @@ import soundfile as sf
 def find_ffmpeg_path():
     """
     Найти путь к FFmpeg в системе с расширенной диагностикой
+
+    :return: Путь к исполняемому файлу FFmpeg или None, если не найден
+    :rtype: str | None
     """
     import shutil
     
@@ -37,6 +40,13 @@ def find_ffmpeg_path():
 FFMPEG_PATH = find_ffmpeg_path()
 
 class AudioTranscriber:
+    """
+    Класс для распознавания речи с использованием модели Whisper.
+    
+    Поддерживает конвертацию различных аудиоформатов в WAV и их транскрибацию.
+    Требует установленного FFmpeg для обработки аудио.
+    """
+
     def __init__(self, language: str = 'ru'):
         self.logger = logging.getLogger(__name__)
         
@@ -55,11 +65,15 @@ class AudioTranscriber:
 
     def _convert_audio(self, input_path: str, output_path: str = None) -> str:
         """
-        Конвертация аудио в формат .wav для Whisper
-        
+        Конвертация аудио в формат WAV для обработки Whisper.
+        Включает нормализацию, приведение к моно и ресемплинг до 16кГц.
+
         :param input_path: Путь к исходному аудиофайлу
-        :param output_path: Путь для сохранения конвертированного файла
-        :return: Путь к конвертированному файлу .wav
+        :type input_path: str
+        :param output_path: Опциональный путь для сохранения WAV файла
+        :type output_path: str | None
+        :return: Путь к конвертированному WAV файлу или исходному файлу при ошибке
+        :rtype: str
         """
         # Расширенная диагностика входного файла
         self.logger.info(f"Начало конвертации файла: {input_path}")
@@ -120,10 +134,12 @@ class AudioTranscriber:
 
     def transcribe_audio(self, audio_path: str) -> str:
         """
-        Распознавание речи с использованием модели Whisper
-        
-        :param audio_path: Путь к аудиофайлу
-        :return: Распознанный текст
+        Распознавание речи из аудиофайла с использованием Whisper.
+
+        :param audio_path: Путь к аудиофайлу для распознавания
+        :type audio_path: str
+        :return: Распознанный текст или пустая строка при ошибке
+        :rtype: str
         """
         try:
             # Расширенная диагностика входного файла

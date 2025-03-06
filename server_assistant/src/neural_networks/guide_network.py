@@ -10,7 +10,18 @@ from src.neural_networks.small_talk_network import SmallTalkNetwork
 
 
 class GuideNetwork:
+    """
+    Центральный маршрутизатор для обработки сообщений.
+    
+    Управляет распределением запросов между специализированными нейронными сетями
+    на основе типа задачи.
+    """
     def __init__(self, bot, user_id):
+        """
+        :param bot: Экземпляр бота для отправки сообщений
+        :param user_id: Идентификатор пользователя
+        :type user_id: int
+        """
         self.logger = logging.getLogger(__name__)        
         # Инициализация сетей
         self.functional_network = FunctionalNetwork(user_id=user_id)
@@ -24,6 +35,13 @@ class GuideNetwork:
     async def _route_to_network(self, task_type: TaskType, message: str) -> str:
         """
         Маршрутизация сообщения в соответствующую нейронную сеть
+        
+        :param task_type: Тип задачи для обработки
+        :type task_type: TaskType
+        :param message: Текст сообщения
+        :type message: str
+        :return: Ответ от соответствующей сети
+        :rtype: str
         """
         try:
             if task_type == TaskType.SMALL_TALK:

@@ -5,7 +5,18 @@ from src.utils.user_preferences import UserPreferences
 
 
 class FunctionalNetwork:
+    """
+    Сеть для обработки функциональных запросов пользователя.
+    
+    Специализируется на предоставлении пошаговых инструкций
+    и алгоритмов действий.
+    """
+
     def __init__(self, user_id: int):
+        """
+        :param user_id: Идентификатор пользователя
+        :type user_id: int
+        """
         self.logger = logging.getLogger(__name__)
         self.user_preferences = UserPreferences()
         selected_model = self.user_preferences.get_llm_model(user_id=user_id)
@@ -14,6 +25,14 @@ class FunctionalNetwork:
         self.openai_processor = OpenAIProcessor(task_type="FUNCTIONAL", user_id=user_id)
 
     def generate_response(self, message):
+        """
+        Генерация ответа на функциональный запрос
+        
+        :param message: Текст запроса пользователя
+        :type message: str
+        :return: Сгенерированный ответ или сообщение об ошибке
+        :rtype: str
+        """
         system_message = """
         Системное сообщение:
         Твой владелец - Владимир. Твой создатель - Глеб. 

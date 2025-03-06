@@ -5,7 +5,18 @@ from src.utils.user_preferences import UserPreferences
 
 
 class InformationNetwork:
+    """
+    Сеть для обработки информационных запросов.
+    
+    Специализируется на предоставлении структурированной
+    информации и ответов на вопросы пользователя.
+    """
+
     def __init__(self, user_id: int):
+        """
+        :param user_id: Идентификатор пользователя
+        :type user_id: int
+        """
         self.logger = logging.getLogger(__name__)
         self.user_preferences = UserPreferences()
         selected_model = self.user_preferences.get_llm_model(user_id=user_id)
@@ -13,6 +24,16 @@ class InformationNetwork:
         self.openai_processor = OpenAIProcessor(task_type="INFORMATION", user_id=user_id)
 
     def generate_response(self, message, use_context: bool = True):
+        """
+        Генерация информационного ответа
+        
+        :param message: Текст запроса
+        :type message: str
+        :param use_context: Использовать ли контекст диалога
+        :type use_context: bool
+        :return: Сгенерированный ответ или сообщение об ошибке
+        :rtype: str
+        """
         system_message = """
         Системное сообщение:
         Твой владелец - Владимир. Твой создатель - Глеб. 
