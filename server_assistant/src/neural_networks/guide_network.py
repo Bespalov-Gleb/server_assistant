@@ -1,8 +1,5 @@
 import logging
-from typing import Tuple
-import asyncio
 from aiogram import types
-from enum import Enum
 
 from src.neural_networks.complex_dialog_network import ComplexDialogNetwork
 from src.neural_networks.functional_network import FunctionalNetwork

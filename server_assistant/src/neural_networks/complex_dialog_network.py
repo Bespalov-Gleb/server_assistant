@@ -1,5 +1,4 @@
 import logging
-from aiogram import types
 
 from src.neural_networks.openai_processor import OpenAIProcessor
 from src.utils.user_preferences import UserPreferences
