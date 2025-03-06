@@ -27,12 +27,11 @@ class OutputType(Enum):
     DEFAULT = auto()
 
 class RouterNetwork:
-    def __init__(self, user_id):
+    def __init__(self, chat_id):
         self.logger = logging.getLogger(__name__)
         self.user_preferences = UserPreferences()
-        selected_model = self.user_preferences.get_llm_model(user_id=user_id)
         
-        self.openai_processor = OpenAIProcessor(user_id=user_id)
+        self.openai_processor = OpenAIProcessor(chat_id=chat_id)
     
     def detect_output_type(self, message: str) -> OutputType:
         system_message = """

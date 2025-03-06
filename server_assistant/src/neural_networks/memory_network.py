@@ -1,25 +1,26 @@
 import os
 import json
 import logging
-from re import T
+from re import I, T
 from typing import Dict, List, Optional
 from .deepseek_processor import DeepSeekProcessor  # Изменили импорт
 from .openai_processor import OpenAIProcessor
+from aiogram import types
 
 class MemoryNetwork:
-    def __init__(self, user_id: int):
+    def __init__(self, chat_id: int):
         self.logger = logging.getLogger(__name__)
-        self.memory_file = os.path.join('temp', f'memories_{user_id}.json')
+        self.memory_file = os.path.join('temp', f'memories_{chat_id}.json')
         # Создаем директорию, если не существует
         os.makedirs(os.path.dirname(self.memory_file), exist_ok=True)
-        self.openai_processor = OpenAIProcessor(user_id=user_id)
-        self.user_id = user_id
+        self.openai_processor = OpenAIProcessor(chat_id=chat_id)
+        self.chat_id = chat_id
         self.memory = {
-            'user_id': self.user_id,
+            'chat_id': self.chat_id,
             'text': ''
         }
 
-    async def extract_memory_details(self, message: str):
+    async def extract_memory_details(self, message: types.Message, transcribe=None):
         """
         Извлечение деталей памяти с помощью OpenAI
         
@@ -37,9 +38,13 @@ class MemoryNetwork:
         Запрос пользователя:
         """
         self.logger.info("Функция extract_memory_details запущена")
+        if transcribe == None:
+            text = message.from_user.username + ': ' + message.text
+        else:
+            text = message.from_user.username + ': ' + transcribe
         try:
             response = self.openai_processor.process_with_retry(
-                prompt=system_message + '\n' + message, 
+                prompt=system_message + '\n' + text, 
                 temperature=0.5,
                 max_tokens=2000, 
             )
@@ -50,14 +55,14 @@ class MemoryNetwork:
         
         
 
-    async def search_memories(self, type: str,message: str):
+    async def search_memories(self, search_type: str, message: types.Message, transcribe=None):
         """
         Извлечение деталей памяти для поиска с помощью OpenAI
         
         :param message: Сообщение пользователя
         :return: Извлеченный текст заметки или None
         """
-        if type == "SEARCH":
+        if search_type == "SEARCH":
             self.logger.info("Активирована ветка SEARCH метода search_memories")
             system_message = """
             Системное сообщение:
@@ -70,12 +75,16 @@ class MemoryNetwork:
             Твой ответ: "Понравился шоколад Alpen Gold
             Запрос пользователя:
             """
+            if transcribe == None:
+                text = message.from_user.username + ': ' + message.text
+            else:
+                text = message.from_user.username + ': ' + transcribe
             memories = [
             {"role": "system", "content": "Ты помощник, который умеет извлекать информацию из памяти."},
             {"role": "system", "content": str(self._load_memories())},
-            {"role": "user", "content": message}
+            {"role": "user", "content": text}
             ]   
-        if type == "DELETE":
+        if search_type == "DELETE":
 
             self.logger.info("Активирована ветка DELETE метода search_memories")
             system_message = """
@@ -86,19 +95,23 @@ class MemoryNetwork:
             Хорошо проанализируй список заметок и выбери наиболее подходящую.
             Выбранную для удаления заметку верни в формате json по шаблону:
             {
-            "user_id": <id пользователя>,
+            "chat_id": <id пользователя>,
             "text": "<текст заметки>"
             }
             В ответе верни заметку в точности, как она записана в списке заметок!
             Запрос пользователя:
             """
+            if transcribe == None:
+                text = message.from_user.username + ': ' + message.text
+            else:
+                text = message.from_user.username + ': ' + transcribe
             memories = [
             {"role": "system", "content": "Ты помощник, который профессионально сопоставляет заметку из запроса пользователя с заметкой из списка."},
             {"role": "system", "content": str(self._load_memories())},
-            {"role": "user", "content": message}
+            {"role": "user", "content": text}
             ]   
 
-        if type == "CHANGE":
+        if search_type == "CHANGE":
             system_message = """
             Системное сообщение:
             Ты профессиональный редактор заметок.
@@ -111,25 +124,29 @@ class MemoryNetwork:
             В ответе тебе нужно вернуть изначальную заметку и обновленную заметку в формате json по шаблону:
             [
             {
-            "user_id": <id пользователя>,
+            "chat_id": <id пользователя>,
             "text": "<текст заметки>"
             }
             {
-            "user_id": <id пользователя>,
+            "chat_id": <id пользователя>,
             "text": "<обновленный текст заметки>"
             }
             ]
             Запрос пользователя:
             """
+            if transcribe == None:
+                text = message.from_user.username + ': ' + message.text
+            else:
+                text = message.from_user.username + ': ' + transcribe
             memories = [
             {"role": "system", "content": "Ты помощник, который профессионально редактирует заметки пользователя"},
             {"role": "system", "content": str(self._load_memories())},
-            {"role": "user", "content": message}
+            {"role": "user", "content": text}
             ]   
 
         try:
             response = self.openai_processor.process_with_retry(
-                prompt=system_message + '\n' + message, 
+                prompt=system_message + '\n' + text, 
                 temperature=0.5,
                 max_tokens=2000, 
                 use_context="MEM",
@@ -170,7 +187,7 @@ class MemoryNetwork:
         except Exception as e:
             self.logger.error(f"Ошибка сохранения памяти: {e}")
 
-    async def add_memory(self, message: str) -> str:
+    async def add_memory(self, message: types.Message, transcribe=None) -> str:
         """
         Добавление новой заметки
         
@@ -179,7 +196,7 @@ class MemoryNetwork:
         """
         # Извлечение текста заметки
         self.logger.info("Функция add_memory запущена")
-        memory_text = await self.extract_memory_details(message)
+        memory_text = await self.extract_memory_details(message, transcribe)
         self.logger.info(f"Извлечен текст заметки: {memory_text}")
         if not memory_text:
             return "Не удалось извлечь информацию для заметки."
@@ -195,7 +212,7 @@ class MemoryNetwork:
             self.logger.error(f"Ошибка загрузки памяти: {e}")
         # Создание новой заметки
         new_memory = {
-            'user_id': self.user_id,
+            'chat_id': self.chat_id,
             'text': memory_text
         }
         
@@ -206,27 +223,28 @@ class MemoryNetwork:
         
         return f"Запомнил: {memory_text}"
 
-    async def recall_memory(self, message: str) -> str:
+    async def recall_memory(self, message: types.Message, transcribe=None) -> str:
         """
         Поиск заметок по запросу
         
         :param message: Запрос пользователя
         :return: Найденные заметки
         """
-        response = await self.search_memories(message, type="SEARCH")
+        response = await self.search_memories(search_type="SEARCH", message=message, transcribe=transcribe)
         if response:
             return f"Заметка: {response}"
         else:
             return "Не нашел заметок по вашему запросу."
 
-    async def delete_memory(self, message: str) -> str:
+    async def delete_memory(self, message: types.Message, transcribe=None) -> str:
         """Удаление памяти"""
         try:
-            response = await self.search_memories(message, type="DELETE")
+            response = await self.search_memories(search_type="DELETE", message=message, transcribe=transcribe)
+            self.logger.info(f"Заметка на удаление: {response}")
             if response:
                 # Преобразуем JSON-строку в объект
-                memory_to_delete = json.loads(message)  # Предполагаем, что message содержит JSON
-                user_id = memory_to_delete['user_id']
+                memory_to_delete = json.loads(response)  # Предполагаем, что message содержит JSON
+                chat_id = memory_to_delete['chat_id']
                 text_to_delete = memory_to_delete['text']
                 
                 # Загружаем существующие заметки
@@ -234,7 +252,7 @@ class MemoryNetwork:
                 
                 # Поиск и удаление заметки
                 initial_count = len(memories)
-                memories = [mem for mem in memories if not (mem['user_id'] == user_id and mem['text'] == text_to_delete)]
+                memories = [mem for mem in memories if not (mem['chat_id'] == chat_id and mem['text'] == text_to_delete)]
                 
                 if len(memories) < initial_count:
                     self._save_memories(memories)
@@ -246,25 +264,25 @@ class MemoryNetwork:
             self.logger.error(f"Ошибка удаления памяти: {e}")
             return "Не удалось удалить заметку."
     
-    async def change_memory(self, message: str) -> str:
+    async def change_memory(self, message: types.Message, transcribe=None) -> str:
         """Изменения заметок"""
         try:
             # Получаем обновленную заметку через search_memories
-            response = await self.search_memories(message, type="CHANGE")
+            response = await self.search_memories(search_type="CHANGE", message=message, transcribe=transcribe)
             
             # Преобразуем ответ в JSON
             updated_memory = json.loads(response)
             
-            # Извлекаем user_id и текст обновленной заметки
-            user_id = updated_memory[1]['user_id']  # Обновленная заметка
+            # Извлекаем chat_id и текст обновленной заметки
+            chat_id = updated_memory[1]['chat_id']  # Обновленная заметка
             updated_text = updated_memory[1]['text']
             
             # Загружаем существующие заметки
-            memories = self._load_memories(user_id)
+            memories = self._load_memories()
             
             # Обновляем заметку
             for mem in memories:
-                if mem['user_id'] == user_id and mem['text'] == updated_memory[0]['text']:
+                if mem['chat_id'] == chat_id and mem['text'] == updated_memory[0]['text']:
                     mem['text'] = updated_text
                     break
             

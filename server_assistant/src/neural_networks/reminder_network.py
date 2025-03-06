@@ -7,18 +7,19 @@ import asyncio
 from ..utils.user_preferences import UserPreferences
 from .deepseek_processor import DeepSeekProcessor
 from .openai_processor import OpenAIProcessor
+from aiogram import types
 
 class ReminderNetwork:
-    def __init__(self, bot, user_id):
+    def __init__(self, bot, chat_id):
         self.logger = logging.getLogger(__name__)
         self.user_preferences = UserPreferences()
-        selected_model = self.user_preferences.get_llm_model(user_id=user_id)
+        selected_model = self.user_preferences.get_llm_model(chat_id=chat_id)
         
-        self.openai_processor = OpenAIProcessor(task_type="REMINDER", user_id=user_id)
+        self.openai_processor = OpenAIProcessor(task_type="REMINDER", chat_id=chat_id)
         self.bot = bot
-        self.user_id = user_id
+        self.chat_id = chat_id
 
-    def generate_response(self, message: str):
+    def generate_response(self, message: types.Message, transcribe=None):
         """
         Генерация ответа с деталями напоминания
         """
@@ -41,8 +42,10 @@ class ReminderNetwork:
         
         try:
             # Добавляем контекст сообщения в системное сообщение
-            full_prompt = system_message + '\n' + time_message + '\n' + 'Запрос пользователя: ' + message
-            
+            if transcribe == None:
+                full_prompt = system_message + '\n' + time_message + '\n' + f'Запрос пользователя {message.from_user.username}: ' + message.text
+            else:
+                full_prompt = system_message + '\n' + time_message + '\n' + f'Запрос пользователя {message.from_user.username}: ' + transcribe
             # Получаем ответ от OpenAI
             response = self.openai_processor.process_with_retry(
                 prompt=full_prompt,
@@ -94,13 +97,16 @@ class ReminderNetwork:
             self.logger.error(f"Проблемный ответ: {response}")
             return None
 
-    async def create_reminder(self, message: str):
+    async def create_reminder(self, message: str, transcribe=None):
         """
         Обработка сообщения и создание напоминания
         """
         try:
             # Получаем детали напоминания
-            reminder_details = self.generate_response(message)
+            if transcribe == None:
+                reminder_details = self.generate_response(message)
+            else:
+                reminder_details = self.generate_response(message, transcribe)
             
             if reminder_details:
                 reminder_text, reminder_time, reminder_type = reminder_details
