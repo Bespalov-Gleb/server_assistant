@@ -1,17 +1,32 @@
-import os
 import logging
-from dotenv import load_dotenv
 from openai import OpenAI
 from typing import Dict, Any, Optional
-from .llm_processor import LLMProcessor
-from .dialog_manager import dialog_manager
+from src.neural_networks.llm_processor import LLMProcessor
+from src.neural_networks.dialog_manager import dialog_manager
 
-load_dotenv()
+from config import get_config
+
 
 class DeepSeekProcessor(LLMProcessor):
+    """
+    Процессор для работы с Deepseek API.
+    
+    Обеспечивает обработку запросов с использованием моделей Deepseek,
+    управление контекстом диалога и валидацию API-ключа.
+    """
+
     def __init__(self, task_type: str = None):
+        """
+        Инициализация процессора Deepseek
+
+        :param task_type: Тип задачи для обработки
+        :type task_type: str | None
+        :raises ValueError: Если API ключ не найден
+        """
+        deepseek_config = get_config().neural_networks.deepseek
+
         self.logger = logging.getLogger(__name__)
-        api_key = os.getenv('DEEPSEEK_API_KEY')
+        api_key = deepseek_config.api_key
         
         if not api_key:
             self.logger.error("Deepseek API ключ не найден!")
@@ -36,6 +51,24 @@ class DeepSeekProcessor(LLMProcessor):
         temperature: float = 0.7,
         use_context: bool = True
     ) -> Optional[str]:
+        """
+        Обработка запроса с поддержкой контекста и повторных попыток
+
+        :param prompt: Текст запроса
+        :type prompt: str
+        :param system_message: Системное сообщение для модели
+        :type system_message: str
+        :param model: Название модели Deepseek
+        :type model: str
+        :param max_tokens: Максимальное количество токенов в ответе
+        :type max_tokens: int
+        :param temperature: Температура генерации (0.0 - 1.0)
+        :type temperature: float
+        :param use_context: Использовать ли контекст диалога
+        :type use_context: bool
+        :return: Ответ модели или None при ошибке
+        :rtype: str | None
+        """
         try:
             # Подготовка контекста
             context = self.dialog_manager.get_context() if use_context else []
@@ -70,7 +103,10 @@ class DeepSeekProcessor(LLMProcessor):
 
     def get_model_info(self) -> Dict[str, Any]:
         """
-        Возвращает информацию о текущей модели Deepseek
+        Получение информации о текущей модели Deepseek
+
+        :return: Словарь с информацией о модели
+        :rtype: Dict[str, Any]
         """
         return {
             "name": "deepseek_chat",
@@ -81,7 +117,10 @@ class DeepSeekProcessor(LLMProcessor):
 
     def validate_api_key(self) -> bool:
         """
-        Проверяет валидность API-ключа OpenAI
+        Проверка валидности API-ключа Deepseek
+
+        :return: True если ключ валиден, False в противном случае
+        :rtype: bool
         """
         try:
             # Пробуем сделать простой запрос для проверки ключа

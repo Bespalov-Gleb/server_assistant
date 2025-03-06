@@ -1,11 +1,24 @@
 import logging
-from .deepseek_processor import DeepSeekProcessor  # Изменили импорт
-from .openai_processor import OpenAIProcessor
-from ..utils.user_preferences import UserPreferences
 from aiogram import types
 
+from src.neural_networks.openai_processor import OpenAIProcessor
+from src.utils.user_preferences import UserPreferences
+
+
+
 class FunctionalNetwork:
+    """
+    Сеть для обработки функциональных запросов пользователя.
+    
+    Специализируется на предоставлении пошаговых инструкций
+    и алгоритмов действий.
+    """
+
     def __init__(self, chat_id: int):
+        """
+        :param chat_id: Идентификатор чата
+        :type chat_id: int
+        """
         self.logger = logging.getLogger(__name__)
         self.user_preferences = UserPreferences()
         selected_model = self.user_preferences.get_llm_model(chat_id=chat_id)
@@ -13,7 +26,17 @@ class FunctionalNetwork:
             
         self.openai_processor = OpenAIProcessor(chat_id=chat_id)
 
+
     def generate_response(self, message, transcribe=None):
+        """
+        Генерация ответа на функциональный запрос
+        
+        :param message: Текст запроса пользователя
+        :type message: str
+        :return: Сгенерированный ответ или сообщение об ошибке
+        :rtype: str
+        """
+        
         system_message = """
         Системное сообщение:
         Твой владелец - Владимир. Твой создатель - Глеб. 

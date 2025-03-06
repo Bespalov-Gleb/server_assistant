@@ -1,11 +1,9 @@
 import logging
 from enum import Enum, auto
-from dotenv import load_dotenv
-from ..utils.user_preferences import UserPreferences
-from .deepseek_processor import DeepSeekProcessor  # Изменили импорт
-from .openai_processor import OpenAIProcessor
 
-load_dotenv()
+from src.neural_networks.openai_processor import OpenAIProcessor
+from src.utils.user_preferences import UserPreferences
+
 
 class TaskType(Enum):
     SMALL_TALK = auto()
@@ -27,13 +25,29 @@ class OutputType(Enum):
     DEFAULT = auto()
 
 class RouterNetwork:
+    """
+    Классификатор запросов пользователя.
+    Определяет тип задачи и желаемый формат вывода.
+    Используется внутри GuideNetwork для классификации запросов.
+    """
+
     def __init__(self, chat_id):
+        """
+        :param chat_id: ID чата для персонализации настроек
+        """
+       
         self.logger = logging.getLogger(__name__)
         self.user_preferences = UserPreferences()
         
         self.openai_processor = OpenAIProcessor(chat_id=chat_id)
     
     def detect_output_type(self, message: str) -> OutputType:
+        """
+        Определяет желаемый тип вывода на основе сообщения пользователя.
+
+        :param message: Сообщение пользователя
+        :return: Тип вывода из enum OutputType
+        """
         system_message = """
         Системное сообщение:
         Ты - профессиональный классификатор.
@@ -78,6 +92,12 @@ class RouterNetwork:
         return OutputType.TEXT
 
     def detect_task_type(self, message: str) -> TaskType:
+        """
+        Определяет тип задачи на основе сообщения пользователя.
+
+        :param message: Сообщение пользователя
+        :return: Тип задачи из enum TaskType
+        """
         system_message = """
         Системное сообщение:
         Ты - профессиональный классификатор сообщений.

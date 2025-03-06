@@ -1,17 +1,35 @@
 import logging
-from .deepseek_processor import DeepSeekProcessor  # Изменили импорт
-from .openai_processor import OpenAIProcessor
-from ..utils.user_preferences import UserPreferences
-from aiogram import types
+
+from src.neural_networks.openai_processor import OpenAIProcessor
+from src.utils.user_preferences import UserPreferences
+
 
 class SmallTalkNetwork:
+    """
+    Класс для обработки повседневного общения с пользователем.
+    Использует OpenAI для генерации контекстных ответов.
+    """
+
     def __init__(self, chat_id):
+        """
+        :param chat_id: ID чата для идентификации контекста
+        """
+
         self.logger = logging.getLogger(__name__)
         self.user_preferences = UserPreferences()
         self.openai_processor = OpenAIProcessor(chat_id=chat_id)
     
 
+
     def generate_response(self, message, transcribe=None):
+        """
+        Генерирует ответ на сообщение пользователя с учетом контекста беседы.
+
+        :param message: Сообщение пользователя
+        :param use_context: Флаг использования контекста беседы
+        :return: Сгенерированный ответ или сообщение об ошибке
+        """
+
         system_message = """
         Системное сообщение:
         Ты дружелюбный ассистент.

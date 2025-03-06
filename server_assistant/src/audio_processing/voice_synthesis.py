@@ -1,20 +1,27 @@
-import os
-import torch
 import logging
-import soundfile as sf
-from dotenv import load_dotenv
-import torchaudio
+import os
+
 import numpy as np
-import subprocess
+import soundfile as sf
+import torch
+import torchaudio
+
 
 class VoiceSynthesizer:
+    """
+    Класс для синтеза речи с использованием модели SileroTTS.
+    
+    Поддерживает несколько голосов и форматов аудио вывода.
+    """
+
     def __init__(self, language: str = 'ru'):
         """
         Инициализация синтезатора речи с SileroTTS
         
-        :param language: Язык синтеза
+        :param language: Язык синтеза речи
+        :type language: str
+        :raises Exception: При ошибке загрузки модели
         """
-        load_dotenv()
         self.logger = logging.getLogger(__name__)
         self.language = language
         
@@ -56,8 +63,13 @@ class VoiceSynthesizer:
         Сохранение аудио с автоматическим определением формата
         
         :param audio_data: Numpy массив с аудиоданными
+        :type audio_data: np.ndarray
         :param output_path: Путь для сохранения файла
+        :type output_path: str
         :param sample_rate: Частота дискретизации
+        :type sample_rate: int
+        :return: Путь к сохраненному файлу или None при ошибке
+        :rtype: str | None
         """
         try:
             # Определение формата по расширению
@@ -107,8 +119,12 @@ class VoiceSynthesizer:
         Преобразование текста в речь с помощью SileroTTS
         
         :param text: Текст для синтеза речи
+        :type text: str
         :param output_file: Путь для сохранения файла
-        :return: Путь к сгенерированному аудиофайлу
+        :type output_file: str
+        :return: Путь к сгенерированному аудиофайлу или пустая строка при ошибке
+        :rtype: str
+        :raises Exception: При критических ошибках синтеза речи
         """
         try:
             # Проверка текста

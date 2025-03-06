@@ -1,14 +1,30 @@
-import os
 import json
 import logging
-from re import I, T
-from typing import Dict, List, Optional
-from .deepseek_processor import DeepSeekProcessor  # Изменили импорт
-from .openai_processor import OpenAIProcessor
 from aiogram import types
 
+import os
+from re import I, T
+from typing import Dict, List, Optional
+
+from src.neural_networks.openai_processor import OpenAIProcessor
+
+
 class MemoryNetwork:
+    """
+    Сеть для управления пользовательскими заметками.
+    
+    Обеспечивает создание, поиск, редактирование и удаление заметок
+    с использованием персистентного хранения в JSON файлах.
+    """
+
     def __init__(self, chat_id: int):
+        """
+        Инициализация менеджера памяти
+        
+        :param chat_id: Идентификатор чата
+        :type chat_id: int
+        """
+
         self.logger = logging.getLogger(__name__)
         self.memory_file = os.path.join('temp', f'memories_{chat_id}.json')
         # Создаем директорию, если не существует
@@ -25,7 +41,9 @@ class MemoryNetwork:
         Извлечение деталей памяти с помощью OpenAI
         
         :param message: Сообщение пользователя
-        :return: Извлеченный текст заметки или None
+        :type message: str
+        :return: Извлеченный текст заметки
+        :rtype: str | None
         """
         system_message = """
         Системное сообщение:

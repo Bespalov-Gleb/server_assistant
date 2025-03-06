@@ -1,17 +1,28 @@
 import os
 import logging
-from dotenv import load_dotenv
 from openai import OpenAI
 from typing import Dict, Any, Optional
-from .llm_processor import LLMProcessor
-from .dialog_manager import DialogManager  # Added import for DialogManager
 from aiogram import types
-load_dotenv()
+
+from src.neural_networks.llm_processor import LLMProcessor
+from src.neural_networks.dialog_manager import DialogManager
+
+from config import get_config
 
 class OpenAIProcessor(LLMProcessor):
+    """
+    Обработчик запросов к OpenAI API.
+    Управляет взаимодействием с моделями OpenAI.
+    """
+
     def __init__(self, task_type: str = None, chat_id: int = 0):
+        """
+        :param task_type: Тип задачи для контекстуализации запросов
+        :param user_id: ID пользователя для управления контекстом
+        """
+        openai_config = get_config().neural_networks.openai
         self.logger = logging.getLogger(__name__)
-        api_key = os.getenv('OPENAI_API_KEY')
+        api_key = openai_config.api_key
         
         if not api_key:
             self.logger.error("OpenAI API ключ не найден!")
@@ -31,7 +42,22 @@ class OpenAIProcessor(LLMProcessor):
         use_context = False,
         context_file =  None,
     ) -> Optional[str]:
+
+        """
+        Обрабатывает запрос к API с поддержкой контекста и повторных попыток.
+
+        :param prompt: Текст запроса
+        :param system_message: Системное сообщение для контекста
+        :param model: Название модели OpenAI
+        :param max_tokens: Максимальное количество токенов
+        :param temperature: Температура генерации
+        :param use_context: Флаг использования контекста
+        :param context_file: Путь к файлу контекста
+        :return: Сгенерированный ответ или None при ошибке
+        """
+     
         dialog_manager = DialogManager(context_file=os.path.join('temp', f'dialogue_context_{self.chat_id}.json'))  # Added DialogManager instance
+      
         if use_context == "MEM":
             try:
                 if not isinstance(context_file, list):

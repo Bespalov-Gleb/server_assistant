@@ -1,18 +1,31 @@
 import logging
-import asyncio
 from aiogram import types
-from enum import Enum
-from .router_network import RouterNetwork, TaskType
-from .small_talk_network import SmallTalkNetwork
-from .complex_dialog_network import ComplexDialogNetwork
-from .information_network import InformationNetwork
-from .reminder_network import ReminderNetwork
-from .functional_network import FunctionalNetwork
-from .memory_network import MemoryNetwork
+
+from src.neural_networks.complex_dialog_network import ComplexDialogNetwork
+from src.neural_networks.functional_network import FunctionalNetwork
+from src.neural_networks.information_network import InformationNetwork
+from src.neural_networks.memory_network import MemoryNetwork
+from src.neural_networks.reminder_network import ReminderNetwork
+from src.neural_networks.router_network import RouterNetwork, TaskType, OutputType
+from src.neural_networks.small_talk_network import SmallTalkNetwork
+
 
 class GuideNetwork:
+    """
+    Центральный маршрутизатор для обработки сообщений.
+    
+    Управляет распределением запросов между специализированными нейронными сетями
+    на основе типа задачи.
+    """
+
     def __init__(self, bot, chat_id):
-        self.logger = logging.getLogger(__name__)        
+        """
+        :param bot: Экземпляр бота для отправки сообщений
+        :param chat_id: Идентификатор чата
+        :type chat_id: int
+        """
+        self.logger = logging.getLogger(__name__)
+
         # Инициализация сетей
         self.functional_network = FunctionalNetwork(chat_id=chat_id)
         self.router_network = RouterNetwork(chat_id=chat_id)
@@ -25,6 +38,13 @@ class GuideNetwork:
     async def _route_to_network(self, task_type: TaskType, message: types.Message, transcribe=None) -> str:
         """
         Маршрутизация сообщения в соответствующую нейронную сеть
+        
+        :param task_type: Тип задачи для обработки
+        :type task_type: TaskType
+        :param message: Текст сообщения
+        :type message: str
+        :return: Ответ от соответствующей сети
+        :rtype: str
         """
         try:
             if task_type == TaskType.SMALL_TALK:
@@ -58,6 +78,7 @@ class GuideNetwork:
             self.logger.error(f"Ошибка при маршрутизации: {e}")
             return "Произошла ошибка при обработке сообщения."
 
+          
     async def process_message(self, message: types.Message, transcribe=None) -> str:
         """
         Основной метод обработки входящего сообщения

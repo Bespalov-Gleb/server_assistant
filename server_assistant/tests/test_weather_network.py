@@ -1,6 +1,4 @@
-import os
 import pytest
-from src.neural_networks.weather_network import WeatherNetwork
 
 @pytest.fixture
 def weather_network():
