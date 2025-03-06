@@ -4,9 +4,9 @@ from datetime import datetime, timedelta
 import logging
 import traceback
 import asyncio
-from ..utils.user_preferences import UserPreferences
-from .deepseek_processor import DeepSeekProcessor
-from .openai_processor import OpenAIProcessor
+from src.utils.user_preferences import UserPreferences
+from src.neural_networks.deepseek_processor import DeepSeekProcessor
+from src.neural_networks.openai_processor import OpenAIProcessor
 
 class ReminderNetwork:
     def __init__(self, bot, user_id):

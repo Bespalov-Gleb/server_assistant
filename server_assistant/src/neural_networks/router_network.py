@@ -1,9 +1,9 @@
 import logging
 from enum import Enum, auto
 from dotenv import load_dotenv
-from ..utils.user_preferences import UserPreferences
-from .deepseek_processor import DeepSeekProcessor  # Изменили импорт
-from .openai_processor import OpenAIProcessor
+from src.utils.user_preferences import UserPreferences
+from src.neural_networks.deepseek_processor import DeepSeekProcessor
+from src.neural_networks.openai_processor import OpenAIProcessor
 
 load_dotenv()
 

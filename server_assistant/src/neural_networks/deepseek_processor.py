@@ -3,8 +3,8 @@ import logging
 from dotenv import load_dotenv
 from openai import OpenAI
 from typing import Dict, Any, Optional
-from .llm_processor import LLMProcessor
-from .dialog_manager import dialog_manager
+from src.neural_networks.llm_processor import LLMProcessor
+from src.neural_networks.dialog_manager import dialog_manager
 
 load_dotenv()
 
