@@ -1,10 +1,11 @@
-import os
-import torch
 import logging
-import soundfile as sf
-import torchaudio
+import os
+
 import numpy as np
-import subprocess
+import soundfile as sf
+import torch
+import torchaudio
+
 
 class VoiceSynthesizer:
     def __init__(self, language: str = 'ru'):

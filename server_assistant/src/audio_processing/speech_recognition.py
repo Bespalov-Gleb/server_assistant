@@ -1,11 +1,9 @@
-import os
-import time
 import logging
-import whisper
-import subprocess
-import soundfile as sf
+import os
+
 import librosa
 import numpy as np
+import soundfile as sf
 
 
 def find_ffmpeg_path():

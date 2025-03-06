@@ -1,8 +1,8 @@
 import logging
 from enum import Enum, auto
-from src.utils.user_preferences import UserPreferences
-from src.neural_networks.deepseek_processor import DeepSeekProcessor
+
 from src.neural_networks.openai_processor import OpenAIProcessor
+from src.utils.user_preferences import UserPreferences
 
 
 class TaskType(Enum):

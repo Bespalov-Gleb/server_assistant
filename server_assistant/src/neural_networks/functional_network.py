@@ -1,7 +1,8 @@
 import logging
-from src.neural_networks.deepseek_processor import DeepSeekProcessor
+
 from src.neural_networks.openai_processor import OpenAIProcessor
 from src.utils.user_preferences import UserPreferences
+
 
 class FunctionalNetwork:
     def __init__(self, user_id: int):

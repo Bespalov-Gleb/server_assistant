@@ -1,11 +1,8 @@
-from src.logging_config import setup_logging
-import sys
 import asyncio
 
-
-from src.telegram_bot.bot import TelegramAssistantBot
-
 from config import get_config
+from src.logging_config import setup_logging
+from src.telegram_bot.bot import TelegramAssistantBot
 
 # Настройка логирования
 setup_logging()

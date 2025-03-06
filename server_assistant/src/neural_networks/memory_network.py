@@ -1,10 +1,10 @@
-import os
 import json
 import logging
-from re import T
-from typing import Dict, List, Optional
-from src.neural_networks.deepseek_processor import DeepSeekProcessor
+import os
+from typing import Dict, List
+
 from src.neural_networks.openai_processor import OpenAIProcessor
+
 
 class MemoryNetwork:
     def __init__(self, user_id: int):

@@ -1,13 +1,13 @@
 import logging
-import asyncio
-from enum import Enum
+
+from src.neural_networks.complex_dialog_network import ComplexDialogNetwork
+from src.neural_networks.functional_network import FunctionalNetwork
+from src.neural_networks.information_network import InformationNetwork
+from src.neural_networks.memory_network import MemoryNetwork
+from src.neural_networks.reminder_network import ReminderNetwork
 from src.neural_networks.router_network import RouterNetwork, TaskType
 from src.neural_networks.small_talk_network import SmallTalkNetwork
-from src.neural_networks.complex_dialog_network import ComplexDialogNetwork
-from src.neural_networks.information_network import InformationNetwork
-from src.neural_networks.reminder_network import ReminderNetwork
-from src.neural_networks.functional_network import FunctionalNetwork
-from src.neural_networks.memory_network import MemoryNetwork
+
 
 class GuideNetwork:
     def __init__(self, bot, user_id):
