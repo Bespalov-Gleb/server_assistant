@@ -32,13 +32,20 @@ class NeuralNetworks:
     openai: OpenAI
     deepseek: DeepSeek
     yspeechkit: YSpeechKit
-#
+
+
+@dataclass
+class GoogleCalendar:
+    credentials_path: str
+    token_path: str
+    timezone: str = 'Europe/Moscow'
 
 
 @dataclass
 class Config:
     telegram: Telegram
     neural_networks: NeuralNetworks
+    google_calendar: GoogleCalendar
 
 
 def get_config():
@@ -61,5 +68,10 @@ def get_config():
                 oauth_token=getenv('OAUTH'),
                 folder_id=getenv('YANDEX_FOLDER_ID')
             )
+        ),
+        google_calendar=GoogleCalendar(
+            credentials_path=getenv('GOOGLE_CALENDAR_CREDENTIALS_PATH', 'credentials.json'),
+            token_path=getenv('GOOGLE_CALENDAR_TOKEN_PATH', 'token.pickle'),
+            timezone=getenv('GOOGLE_CALENDAR_TIMEZONE', 'Europe/Moscow')
         )
     )

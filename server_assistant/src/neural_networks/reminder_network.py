@@ -35,6 +35,8 @@ class ReminderNetwork:
         Генерирует структурированный ответ с деталями напоминания.
 
         :param message: Сообщение с запросом напоминания
+        :param transcribe: используется ли транскрипция текста
+        :type transcribe: str
         :return: JSON-структура с деталями напоминания
         """
         current_datetime = datetime.now()

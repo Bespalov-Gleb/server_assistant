@@ -31,9 +31,11 @@ class InformationNetwork:
         Генерация информационного ответа
         
         :param message: Текст запроса
-        :type message: str
+        :type message: types.Message
         :param use_context: Использовать ли контекст диалога
         :type use_context: bool
+        :param transcribe: используется ли транскрипция текста
+        :type transcribe: str
         :return: Сгенерированный ответ или сообщение об ошибке
         :rtype: str
         """
