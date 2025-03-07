@@ -1,13 +1,17 @@
 import logging
 import os
+import time
 
 import numpy as np
 import soundfile as sf
 import torch
 import torchaudio
 
+from src.audio_processing.base.tts_model import TTSModel
+from src.audio_processing.base.tts_parameters import Parameters
 
-class VoiceSynthesizer:
+
+class VoiceSynthesizer(TTSModel):
     """
     Класс для синтеза речи с использованием модели SileroTTS.
     
@@ -15,6 +19,7 @@ class VoiceSynthesizer:
     """
 
     def __init__(self, language: str = 'ru'):
+        super().__init__()
         """
         Инициализация синтезатора речи с SileroTTS
         
@@ -24,41 +29,41 @@ class VoiceSynthesizer:
         """
         self.logger = logging.getLogger(__name__)
         self.language = language
-        
+
         try:
             # Загрузка модели Silero
             torch.set_num_threads(4)  # Оптимизация для CPU
             self.device = torch.device('cpu')
-            
+
             # Альтернативный метод загрузки
             model_url = 'https://models.silero.ai/models/tts/ru/v3_1_ru.pt'
             model_path = os.path.join(os.path.expanduser('~'), '.cache', 'torch', 'silero_tts_model.pt')
-            
+
             # Создаем директорию, если не существует
             os.makedirs(os.path.dirname(model_path), exist_ok=True)
-            
+
             # Загружаем модель, если она еще не скачана
             if not os.path.exists(model_path):
                 torch.hub.download_url_to_file(model_url, model_path)
-            
+
             # Загрузка модели
             self.model = torch.package.PackageImporter(model_path).load_pickle("tts_models", "model")
-            
+
             # Список доступных дикторов
             self.speakers = {
                 'xenia': 'xenia',  # Женский голос
                 'eugene': 'eugene',  # Мужской голос
                 'aidar': 'aidar'  # Альтернативный мужской голос
             }
-            
+
             # Выбираем женский голос по умолчанию
             self.speaker = self.speakers['xenia']
-            
+
         except Exception as e:
             self.logger.error(f"Ошибка загрузки модели Silero: {e}")
             raise
 
-    def save_audio_file(self, audio_data: np.ndarray, output_path: str, sample_rate: int = 16000):
+    def _save_audio_file(self, audio_data: np.ndarray, output_path: str, sample_rate: int = 16000):
         """
         Сохранение аудио с автоматическим определением формата
         
@@ -74,7 +79,7 @@ class VoiceSynthesizer:
         try:
             # Определение формата по расширению
             file_ext = os.path.splitext(output_path)[1].lower()
-            
+
             # Список поддерживаемых форматов
             supported_formats = {
                 '.wav': 'wav',
@@ -82,44 +87,46 @@ class VoiceSynthesizer:
                 '.oga': 'oga',
                 '.mp3': 'mp3'
             }
-            
+
             # Автоматическое определение формата, если не указан
             if file_ext not in supported_formats:
                 # По умолчанию используем .wav
                 output_path = os.path.splitext(output_path)[0] + '.wav'
                 file_ext = '.wav'
-            
+
             # Нормализация аудио
             audio_data = audio_data.astype(np.float32)
             audio_data /= np.max(np.abs(audio_data))
-            
+
             # Преобразование в torch тензор
             audio_tensor = torch.from_numpy(audio_data).unsqueeze(0)
-            
+
             # Сохранение с учетом формата
             if file_ext in ['.oga', '.ogg']:
                 torchaudio.save(
-                    output_path, 
-                    audio_tensor, 
-                    sample_rate, 
+                    output_path,
+                    audio_tensor,
+                    sample_rate,
                     format='oga'
                 )
             else:
                 sf.write(output_path, audio_data, sample_rate)
-            
+
             self.logger.info(f"Аудио сохранено: {output_path}")
             return output_path
-        
+
         except Exception as e:
             self.logger.error(f"Ошибка сохранения аудио: {e}", exc_info=True)
             return None
 
-    def text_to_speech(self, text: str, output_file: str = 'response.wav') -> str:
+    def text_to_speech(self, text: str, params: Parameters | None = None, output_file: str | None = "response.wav") -> str:
         """
         Преобразование текста в речь с помощью SileroTTS
         
         :param text: Текст для синтеза речи
         :type text: str
+        :param params: Параметры синтеза речи
+        :type params: Parameters
         :param output_file: Путь для сохранения файла
         :type output_file: str
         :return: Путь к сгенерированному аудиофайлу или пустая строка при ошибке
@@ -158,44 +165,20 @@ class VoiceSynthesizer:
             # Сохранение в .wav
             full_output_path = wav_output_path
             
-            # Нормализация аудио
+            # Нормализация и сохранение аудио
             audio_data = audio.numpy().astype(np.float32)
             audio_data /= np.max(np.abs(audio_data))
             
-            # Сохранение .wav
-            sf.write(full_output_path, audio_data, 24000)
+            output_path = os.path.abspath(os.path.join(
+                os.path.dirname(__file__), '..', '..', 'temp', output_file
+            ))
+            os.makedirs(os.path.dirname(output_path), exist_ok=True)
             
-            # Конвертация в .oga через soundfile
-            try:
-                # Чтение исходного .wav файла
-                audio_data, sample_rate = sf.read(full_output_path)
-                
-                # Сохранение в .oga с указанием формата
-                sf.write(
-                    oga_output_path, 
-                    audio_data, 
-                    sample_rate, 
-                    format='ogg'  # Используем 'ogg' вместо 'oga'
-                )
-                
-                # Логирование успешной конвертации
-                self.logger.info(f"Аудио сконвертировано в .oga: {oga_output_path}")
+            sf.write(output_path, audio_data, 24000)
             
-            except Exception as e:
-                self.logger.error(f"Ошибка конвертации в .oga через soundfile: {e}")
-                return full_output_path
+            self.logger.info(f"Голосовой ответ сгенерирован: {output_path}")
+            return output_path
             
-            # Удаление промежуточного .wav файла
-            try:
-                os.remove(full_output_path)
-            except Exception as e:
-                self.logger.warning(f"Не удалось удалить временный .wav файл: {e}")
-            
-            # Логирование успешной генерации
-            self.logger.info(f"Голосовой ответ сгенерирован: {oga_output_path}")
-            
-            return oga_output_path
-        
         except Exception as e:
             self.logger.error(f"Ошибка синтеза речи: {e}", exc_info=True)
             return ""

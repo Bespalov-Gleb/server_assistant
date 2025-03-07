@@ -45,7 +45,6 @@ class UserPreferences:
         :param chat_id: ID чата
         :param model: Название модели
         """
-        user_id_str = str(user_id)
         chat_id_str = str(chat_id)
         if chat_id_str not in self.preferences:
             self.preferences[chat_id_str] = {}

@@ -5,18 +5,22 @@ import requests
 from dotenv import load_dotenv
 
 from config import get_config
+from src.audio_processing.base.tts_model import TTSModel
+from src.audio_processing.base.tts_parameters import Parameters
 
 load_dotenv()
 
-class YandexSpeechConverter:
+
+class YandexSpeechConverter(TTSModel):
     def __init__(self):
+        super().__init__()
         yandex_config = get_config().neural_networks.yspeechkit # config
 
         self.oauth_token = yandex_config.oauth_token
         self.folder_id = yandex_config.oauth_token
         self.logger = logging.getLogger(__name__)
         
-        # Настройки голоса
+        #Стандартные настройки голоса
         self.voice_settings = {
             'voice': 'anton',  # Женский голос
             'emotion': 'good',  # Эмоциональная окраска
@@ -24,7 +28,44 @@ class YandexSpeechConverter:
             'format': 'mp3'  # Формат аудио
         }
 
-    def get_iam_token(self):
+    def text_to_speech(self, text: str, params: Parameters | None = None, output_file: str | None = None) -> str:
+        """
+        Реализация абстрактного метода для преобразования текста в речь.
+
+        :param text: Текст для синтеза
+        :type text: str
+        :param params: Параметры для синтеза
+        :type params: Parameters
+        :param output_file: Путь для сохранения файла
+        :type output_file: Optional[str]
+        :return: Путь к сгенерированному аудиофайлу или пустая строка при ошибке
+        :rtype: str
+        """
+        try:
+            # Применяем параметры к настройкам голоса
+            if params:
+                if params.voice:
+                    self.voice_settings['voice'] = params.voice
+                if params.emotion:
+                    self.voice_settings['emotion'] = params.emotion
+                if params.speed:
+                    self.voice_settings['speed'] = params.speed
+                if params.format:
+                    self.voice_settings['format'] = params.format
+            
+            # Генерируем аудио через внутренний метод
+            result = self._generate_audio(
+                text, 
+                output_file,
+                language=params.language or 'ru-RU'
+            )
+            return result if result else ""
+            
+        except Exception as e:
+            self.logger.error(f"Ошибка в text_to_speech: {e}")
+            return ""
+
+    def _get_iam_token(self):
         """
         Получение IAM-токена для авторизации в Yandex Cloud.
 
@@ -41,25 +82,16 @@ class YandexSpeechConverter:
             self.logger.error(f"Ошибка получения IAM-токена: {e}")
             return None
 
-    def generate_audio(self, text, output_path=None, language='ru-RU'):
+    def _generate_audio(self, text, output_path=None, language='ru-RU'):
         """
-        Синтез речи из текста с использованием Яндекс.Speechkit.
-
-        :param text: Текст для преобразования в речь
-        :type text: str
-        :param output_path: Путь для сохранения аудио файла. Если не указан, создается временный файл
-        :type output_path: str | None
-        :param language: Язык синтеза речи
-        :type language: str
-        :return: Путь к сгенерированному аудио файлу или None при ошибке
-        :rtype: str | None
+        Внутренний метод для синтеза речи через Яндекс.Speechkit.
         """
         # Генерация временного пути, если не указан
         if not output_path:
             output_path = tempfile.mktemp(suffix='.mp3')
 
         # Получение IAM-токена
-        iam_token = self.get_iam_token()
+        iam_token = self._get_iam_token()
         if not iam_token:
             self.logger.error("Не удалось получить IAM-токен")
             return None
