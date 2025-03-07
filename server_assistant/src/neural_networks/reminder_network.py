@@ -5,6 +5,7 @@ import re
 import traceback
 import asyncio
 from aiogram import types
+from datetime import datetime
 
 from src.neural_networks.openai_processor import OpenAIProcessor
 from src.utils.user_preferences import UserPreferences
