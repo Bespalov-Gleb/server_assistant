@@ -16,8 +16,8 @@ class ComplexDialogNetwork:
         """
         Инициализация обработчика диалогов
 
-        :param user_id: Идентификатор чата для персонализации
-        :type user_id: str
+        :param chat_id: Идентификатор чата для персонализации
+        :type chat_id: int
         """
 
         self.logger = logging.getLogger(__name__)
@@ -31,9 +31,11 @@ class ComplexDialogNetwork:
         Генерация ответа на сообщение пользователя с учетом контекста
 
         :param message: Текст сообщения от пользователя
-        :type message: str
+        :type message: types.Message
         :param use_context: Использовать ли контекст предыдущих сообщений
         :type use_context: bool
+        :param transcribe: используется ли транскрипция текста
+        :type transcribe: str
         :return: Сгенерированный ответ или сообщение об ошибке
         :rtype: str
         """

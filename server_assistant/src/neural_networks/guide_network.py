@@ -8,6 +8,7 @@ from src.neural_networks.memory_network import MemoryNetwork
 from src.neural_networks.reminder_network import ReminderNetwork
 from src.neural_networks.router_network import RouterNetwork, TaskType, OutputType
 from src.neural_networks.small_talk_network import SmallTalkNetwork
+from src.neural_networks.todo_network import TodoNetwork
 
 
 class GuideNetwork:
@@ -34,6 +35,7 @@ class GuideNetwork:
         self.information_network = InformationNetwork(chat_id=chat_id)
         self.reminder_network = ReminderNetwork(bot=bot, chat_id=chat_id)
         self.memory_network = MemoryNetwork(chat_id=chat_id)
+        self.todo_network = TodoNetwork(chat_id=chat_id)
 
     async def _route_to_network(self, task_type: TaskType, message: types.Message, transcribe=None) -> str:
         """
@@ -71,6 +73,8 @@ class GuideNetwork:
                 return await self.memory_network.change_memory(message, transcribe=transcribe)
             elif task_type == TaskType.VIEW_MEMORIES:
                 return self.memory_network.get_all_notes()
+            elif task_type == TaskType.TODO:
+                return self.todo_network.generate_response(message, transcribe=transcribe)
             # Fallback для функциональных задач
             return "Извините, я не могу обработать это сообщение."
         

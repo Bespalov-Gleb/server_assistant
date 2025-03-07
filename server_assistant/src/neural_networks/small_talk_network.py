@@ -27,6 +27,8 @@ class SmallTalkNetwork:
 
         :param message: Сообщение пользователя
         :param use_context: Флаг использования контекста беседы
+        :param transcribe: используется ли транскрипция текста
+        :type transcribe: str
         :return: Сгенерированный ответ или сообщение об ошибке
         """
 

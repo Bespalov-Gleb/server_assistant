@@ -42,6 +42,8 @@ class MemoryNetwork:
         
         :param message: Сообщение пользователя
         :type message: str
+        :param transcribe: используется ли транскрипция текста
+        :type transcribe: str
         :return: Извлеченный текст заметки
         :rtype: str | None
         """

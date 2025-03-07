@@ -32,7 +32,9 @@ class FunctionalNetwork:
         Генерация ответа на функциональный запрос
         
         :param message: Текст запроса пользователя
-        :type message: str
+        :type message: types.Message
+        :param transcribe: используется ли транскрипция текста
+        :type transcribe: str
         :return: Сгенерированный ответ или сообщение об ошибке
         :rtype: str
         """

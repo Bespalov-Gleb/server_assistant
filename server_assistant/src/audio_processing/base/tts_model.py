@@ -4,6 +4,7 @@ from typing import Optional
 
 from src.audio_processing.base.tts_parameters import Parameters
 
+
 class TTSModel(ABC):
     """
     Абстрактный базовый класс для моделей синтеза речи.
