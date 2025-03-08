@@ -41,19 +41,19 @@ class ReminderNetwork:
         """
         current_datetime = datetime.now()
         time_message = f"Текущая дата и время: {current_datetime.isoformat()}"
-        system_message = """
+        system_message = f"""
         Системное сообщение:
         Ты помощник, который создает напоминания. 
         Всегда отвечай ТОЛЬКО в JSON формате с полями:
-        {
+        
             "text": "текст напоминания",
             "time": "время напоминания в ISO формате",
             "type": "one-time или constant"
-        }
+        
         Примеры:
-        1. Напомнить купить хлеб -> {"text": "Купить хлеб", "time": "2025-02-27T18:00:00", "type": "one-time"}
-        2. Ежедневная зарядка -> {"text": "Зарядка", "time": "2025-02-27T07:00:00", "type": "constant"}
-        Запрос пользователя:
+        1. Напомнить купить хлеб -> "text": "Купить хлеб", "time": "2025-02-27T18:00:00", "type": "one-time"
+        2. Ежедневная зарядка -> "text": "Зарядка", "time": "2025-02-27T07:00:00", "type": "constant"
+        Запрос пользователя {message.from_user.username}:
         """
         
         try:

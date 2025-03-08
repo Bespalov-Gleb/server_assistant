@@ -210,7 +210,8 @@ class TodoNetwork:
             Не меняй название полей, записывай их в таком же порядке, как написано в примере выше!
             """
         t = str({datetime.now().isoformat()})
-        system_message = system_message + '\n' + t
+        zp = f'Запрос пользователя: {message.from_user.username}'
+        system_message = system_message + '\n' + t + '\n' + zp
         # Получаем текст сообщения
         if transcribe:
             text = f"{message.from_user.username}: {transcribe}"
